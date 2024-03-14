@@ -186,9 +186,9 @@ class ChibiOSHWDef(object):
                     return 0
             return None
 
-        if function and function.endswith("_RTS") and (
+        if function and (function.endswith("_RTS") or function.endswith("_RTS_GPIO") or function.endswith("_CTS_GPIO")) and (
                 function.startswith('USART') or function.startswith('UART')):
-            # we do software RTS
+            # we do software RTS/CTS
             return None
 
         for label in self.af_labels:
@@ -338,7 +338,7 @@ class ChibiOSHWDef(object):
 
         def is_RTS(self):
             '''return true if this is a RTS pin'''
-            if self.label and self.label.endswith("_RTS") and (
+            if self.label and (self.label.endswith("_RTS") or self.label.endswith("_RTS_GPIO")) and (
                     self.type.startswith('USART') or self.type.startswith('UART')):
                 return True
             return False
@@ -422,7 +422,8 @@ class ChibiOSHWDef(object):
             # pulldown on RTS to prevent radios from staying in bootloader
             if (self.type.startswith('USART') or
                 self.type.startswith('UART')) and (
-                 self.label.endswith('_RTS')):
+                 self.label.endswith('_RTS') or
+                 self.label.endswith('_RTS_GPIO')):
                 v = "PULLDOWN"
 
             if (self.type.startswith('SWD') and
@@ -1886,7 +1887,11 @@ INCLUDE common.ld
             tx_line = self.make_line(dev + '_TX')
             rx_line = self.make_line(dev + '_RX')
             rts_line = self.make_line(dev + '_RTS')
+            if rts_line == "0":
+                rts_line = self.make_line(dev + '_RTS_GPIO')
             cts_line = self.make_line(dev + '_CTS')
+            if cts_line == "0":
+                cts_line = self.make_line(dev + '_CTS_GPIO')
             if rts_line != "0":
                 have_rts_cts = True
                 f.write('#define HAL_HAVE_RTSCTS_SERIAL%u\n' % num)
@@ -2908,12 +2913,12 @@ Please run: Tools/scripts/build_bootloaders.py %s
         if ptype == 'OUTPUT' and re.match(r'US?ART\d+_(TXINV|RXINV)', label):
             return True
         m1 = re.match(r'USART(\d+)', ptype)
-        m2 = re.match(r'USART(\d+)_(RX|TX|CTS|RTS)', label)
+        m2 = re.match(r'USART(\d+)_(RX|TX|CTS|RTS|CTS_GPIO|RTS_GPIO)', label)
         if (m1 and not m2) or (m2 and not m1) or (m1 and m1.group(1) != m2.group(1)):
             '''usart numbers need to match'''
             return False
         m1 = re.match(r'UART(\d+)', ptype)
-        m2 = re.match(r'UART(\d+)_(RX|TX|CTS|RTS)', label)
+        m2 = re.match(r'UART(\d+)_(RX|TX|CTS|RTS|CTS_GPIO|RTS_GPIO)', label)
         if (m1 and not m2) or (m2 and not m1) or (m1 and m1.group(1) != m2.group(1)):
             '''uart numbers need to match'''
             return False
