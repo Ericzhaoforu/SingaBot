@@ -32,4 +32,5 @@ public:
     AP_Int8     sysid_default;      // target sysid for mount to follow
     AP_Int32    dev_id;             // Device id taking into account bus
     AP_Int8     options;            // mount options bitmask
+    AP_Int8     rc_failsafe_action; // positional mode (no change/retract/neutral position) for invalid RC input (used in RC Targeting mode)
 };

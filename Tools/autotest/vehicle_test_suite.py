@@ -7541,7 +7541,7 @@ class TestSuite(ABC):
                                  (str(m), channel_field))
             return m_value
 
-    def wait_servo_channel_value(self, channel, value, timeout=2, comparator=operator.eq):
+    def wait_servo_channel_value(self, channel, value, epsilon=0, timeout=2, comparator=operator.eq):
         """wait for channel value comparison (default condition is equality)"""
         channel_field = "servo%u_raw" % channel
         opstring = ("%s" % comparator)[-3:-1]
@@ -7561,6 +7561,8 @@ class TestSuite(ABC):
                                  (str(m), channel_field))
             self.progress("want SERVO_OUTPUT_RAW.%s=%u %s %u" %
                           (channel_field, m_value, opstring, value))
+            if comparator == operator.eq:
+                return abs(m_value - value) <= epsilon
             if comparator(m_value, value):
                 return m_value
 

@@ -657,6 +657,58 @@ class AutoTestHelicopter(AutoTestCopter):
         self.change_mode('LOITER')
         self.fly_mission_points(self.scurve_nasty_up_mission())
 
+    def wait_mount_retract(self, chan):
+        self.progress("Waiting for mount to retract")
+        open_servo_min = self.get_parameter("SERVO%u_MIN" % chan)
+        self.wait_servo_channel_value(chan, open_servo_min)
+
+    def wait_mount_deploy(self, chan):
+        self.progress("Waiting for mount to deploy")
+        open_servo_max = self.get_parameter("SERVO%u_MAX" % chan, verbose=False)
+        self.wait_servo_channel_value(chan, open_servo_max)
+
+    def MountFailsafeAction(self):
+        """Fly Mount Failsafe action"""
+        self.context_push()
+
+        self.progress("Setting up servo mount")
+        roll_servo = 12
+        pitch_servo = 11
+        yaw_servo = 10
+        open_servo = 9
+        roll_limit = 50
+        self.set_parameters({
+            "MNT1_TYPE": 1,
+            "SERVO%u_MIN" % roll_servo: 1000,
+            "SERVO%u_MAX" % roll_servo: 2000,
+            "SERVO%u_FUNCTION" % yaw_servo: 6,  # yaw
+            "SERVO%u_FUNCTION" % pitch_servo: 7,  # roll
+            "SERVO%u_FUNCTION" % roll_servo: 8,  # pitch
+            "SERVO%u_FUNCTION" % open_servo: 9,  # mount open
+            "MNT1_FS_RC_ACTN": 0,  # retract
+            "MNT1_DEFLT_MODE": 3,  # RC targettting
+            "MNT1_ROLL_MIN": -roll_limit,
+            "MNT1_ROLL_MAX": roll_limit,
+            #                "RC9_OPTION": 27,
+        })
+
+        self.reboot_sitl()
+
+        retract_roll = 25
+        self.set_parameter("MNT1_RETRACT_X", retract_roll)
+        self.progress("Killing RC")
+        self.set_parameter("SIM_RC_FAIL", 1)
+        self.delay_sim_time(10)
+        self.wait_servo_channel_value(roll_servo, int(1500 + retract_roll/roll_limit * 500), epsilon=1)
+
+        self.progress("Resurrecting RC")
+        self.set_parameter("SIM_RC_FAIL", 0)
+        self.wait_servo_channel_value(roll_servo, 1500)
+
+        self.context_pop()
+
+        self.reboot_sitl()
+
     def set_rc_default(self):
         super(AutoTestHelicopter, self).set_rc_default()
         self.progress("Lowering rotor speed")
@@ -982,6 +1034,7 @@ class AutoTestHelicopter(AutoTestCopter):
             self.NastyMission,
             self.PIDNotches,
             self.AutoTune,
+            self.MountFailsafeAction,
         ])
         return ret
 

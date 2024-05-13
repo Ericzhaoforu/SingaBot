@@ -172,6 +172,13 @@ const AP_Param::GroupInfo AP_Mount_Params::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("_OPTIONS", 16, AP_Mount_Params, options, 0),
 
+    // @Param: _FS_RC_ACTN
+    // @DisplayName: Mount RC Failsafe Point Position
+    // @Description: Uses the designated modes target position if RC invalid in RC Targeting mode
+    // @Values: -1:No Change,0:Retracted,1:Neutral
+    // @User: Standard
+    AP_GROUPINFO("_FS_RC_ACTN", 17, AP_Mount_Params, rc_failsafe_action, -1),
+
     AP_GROUPEND
 };
 
