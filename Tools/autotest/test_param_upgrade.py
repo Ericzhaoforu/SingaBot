@@ -57,7 +57,7 @@ class TestParamUpgradeTestSuiteSetParameters(vehicle_test_suite.TestSuite):
             return "quadplane"
         if "copter" in path:
             return "X"
-        raise ValueError("Can't determine vehicleinfo_key from binary path")
+        return "novehicle"
 
     def run(self):
         self.start_SITL(
@@ -105,7 +105,7 @@ class TestParamUpgradeTestSuiteCheckParameters(vehicle_test_suite.TestSuite):
             return "quadplane"
         if "copter" in path:
             return "X"
-        raise ValueError("Can't determine vehicleinfo_key from binary path")
+        return "novehicle"
 
     def run(self):
         self.start_SITL(

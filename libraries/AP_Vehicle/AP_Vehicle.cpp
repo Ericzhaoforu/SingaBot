@@ -284,6 +284,13 @@ const AP_Param::GroupInfo AP_Vehicle::var_info[] = {
     AP_SUBGROUPINFO(serial_manager, "SERIAL", 31, AP_Vehicle, AP_SerialManager),
 #endif
 
+#if AP_BARO_ENABLED
+    // barometer library
+    // @Group: BARO
+    // @Path: ../AP_Baro/AP_Baro.cpp
+    AP_SUBGROUPINFO(barometer, "BARO", 32, AP_Vehicle, AP_Baro),
+#endif
+
     AP_GROUPEND
 };
 
@@ -407,8 +414,20 @@ void AP_Vehicle::setup()
     AP::gripper().init();
 #endif
 
+#if AP_BARO_ENABLED
+    barometer.init();
+    barometer.set_log_baro_bit(baro_log_bit());
+#endif
+
     // init_ardupilot is where the vehicle does most of its initialisation.
     init_ardupilot();
+
+#if AP_BARO_ENABLED
+    // calibrate call currently split from init call as
+    // ConfigErrorLoop points out that we try to send mission messages
+    // without setting wpnav pointer in mode object in Copter.
+    barometer.calibrate();
+#endif
 
 #if AP_SCRIPTING_ENABLED
     scripting.init();
@@ -589,6 +608,9 @@ SCHED_TASK_CLASS arguments:
 const AP_Scheduler::Task AP_Vehicle::scheduler_tasks[] = {
 #if HAL_GYROFFT_ENABLED
     FAST_TASK_CLASS(AP_GyroFFT,    &vehicle.gyro_fft,       sample_gyros),
+#endif
+#if AP_BARO_ENABLED
+    SCHED_TASK(update_barometer,         10, 200, 40),
 #endif
 #if AP_AIRSPEED_ENABLED
     SCHED_TASK_CLASS(AP_Airspeed,  &vehicle.airspeed,       update,                   10, 100, 41),    // NOTE: the priority number here should be right before Plane's calc_airspeed_errors
@@ -1108,6 +1130,15 @@ bool AP_Vehicle::block_GCS_mode_change(uint8_t mode_num, const uint8_t *mode_lis
     }
 
     return false;
+}
+#endif
+
+#if AP_BARO_ENABLED
+// provide a method which the sub-classes can override to do things
+// immediately after the barometer is read:
+void AP_Vehicle::update_barometer()
+{
+    barometer.update();
 }
 #endif
 

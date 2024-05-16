@@ -220,9 +220,7 @@ const AP_Param::Info Rover::var_info[] = {
     // @Path: ../libraries/AP_Scheduler/AP_Scheduler.cpp
     GOBJECT(scheduler, "SCHED_", AP_Scheduler),
 
-    // @Group: BARO
-    // @Path: ../libraries/AP_Baro/AP_Baro.cpp
-    GOBJECT(barometer, "BARO", AP_Baro),
+    // BARO was here
 
 #if AP_RELAY_ENABLED
     // @Group: RELAY
@@ -929,4 +927,7 @@ void Rover::load_parameters(void)
 
     AP_Param::convert_toplevel_objects(toplevel_conversions, ARRAY_SIZE(toplevel_conversions));
 
+#if AP_BARO_ENABLED
+    AP::baro().convert_parameters_for_move_to_ap_vehicle(Parameters::k_param_barometer_old);
+#endif
 }
