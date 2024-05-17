@@ -121,6 +121,7 @@ COMMON_VEHICLE_DEPENDENT_LIBRARIES = [
     'AP_Beacon',
     'AP_Arming',
     'AP_RCMapper',
+    'AP_CINS',
 ]
 
 def get_legacy_defines(sketch_name, bld):

@@ -27,6 +27,10 @@
 #include <AP_Common/Location.h>
 #include <AP_NavEKF/AP_Nav_Common.h>
 
+#if AP_EXTERNAL_AHRS_CINS_ENABLED
+class AP_CINS;
+#endif
+
 class AP_ExternalAHRS_backend;
 
 class AP_ExternalAHRS {
@@ -49,11 +53,13 @@ public:
 #if AP_EXTERNAL_AHRS_MICROSTRAIN5_ENABLED
         MicroStrain5 = 2,
 #endif
+        // 3 reserved for AdNav
+#if AP_EXTERNAL_AHRS_CINS_ENABLED
+        CINS = 4,
+#endif
 #if AP_EXTERNAL_AHRS_INERTIAL_LABS_ENABLED
         InertialLabs = 5,
 #endif
-        // 3 reserved for AdNav
-        // 4 reserved for CINS
         // 6 reserved for Trimble
 #if AP_EXTERNAL_AHRS_MICROSTRAIN7_ENABLED
         MicroStrain7 = 7,
@@ -201,6 +207,10 @@ private:
 
     // true when user has disabled the GNSS
     bool gnss_is_disabled;
+
+#if AP_EXTERNAL_AHRS_CINS_ENABLED
+    AP_CINS *cins_ptr;
+#endif
 };
 
 namespace AP {
