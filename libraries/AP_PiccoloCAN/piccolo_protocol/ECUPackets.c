@@ -603,7 +603,7 @@ int decodeECU_TelemetrySlow1PacketStructure(const void* _pg_pkt, ECU_TelemetrySl
 
     // Input voltage in Volts
     // Range of voltage is 0.0f to 25.5f.
-    _pg_user->voltage = float32ScaledFrom1UnsignedBytes(_pg_data, &_pg_byteindex, 0.0f, 1.0f/10.0f);
+    _pg_user->voltage = float32ScaledFrom1UnsignedBytes(_pg_data, &_pg_byteindex, 0.0f, 1.0f*0.1f);
 
     // Operational mode of the governor
     _pg_user->governorMode = (ECUGovernorMode)((_pg_data[_pg_byteindex]) & 0x7);
@@ -690,7 +690,7 @@ int decodeECU_TelemetrySlow2PacketStructure(const void* _pg_pkt, ECU_TelemetrySl
 
     // Injector duty cycle in percent
     // Range of injectorDuty is 0.0f to 6553.5f.
-    _pg_user->injectorDuty = float32ScaledFrom2UnsignedBeBytes(_pg_data, &_pg_byteindex, 0.0f, 1.0f/10.0f);
+    _pg_user->injectorDuty = float32ScaledFrom2UnsignedBeBytes(_pg_data, &_pg_byteindex, 0.0f, 1.0f*0.1f);
 
     // First ignition advance angle in degrees
     // Range of ignAngle1 is 0.0f to 127.5f.
@@ -1119,15 +1119,15 @@ int decodeECU_PumpDebugPacketStructure(const void* _pg_pkt, ECU_PumpDebug_t* _pg
 
     // Proportional term of the pump feedback control in percent
     // Range of pTerm is -3276.7f to 3276.7f.
-    _pg_user->pTerm = float32ScaledFrom2SignedBeBytes(_pg_data, &_pg_byteindex, 1.0f/10.0f);
+    _pg_user->pTerm = float32ScaledFrom2SignedBeBytes(_pg_data, &_pg_byteindex, 1.0f*0.1f);
 
     // Integral term of the pump feedback control in percent
     // Range of iTerm is -3276.7f to 3276.7f.
-    _pg_user->iTerm = float32ScaledFrom2SignedBeBytes(_pg_data, &_pg_byteindex, 1.0f/10.0f);
+    _pg_user->iTerm = float32ScaledFrom2SignedBeBytes(_pg_data, &_pg_byteindex, 1.0f*0.1f);
 
     // Pump duty cycle in percent
     // Range of dutyCycle is 0.0f to 6553.5f.
-    _pg_user->dutyCycle = float32ScaledFrom2UnsignedBeBytes(_pg_data, &_pg_byteindex, 0.0f, 1.0f/10.0f);
+    _pg_user->dutyCycle = float32ScaledFrom2UnsignedBeBytes(_pg_data, &_pg_byteindex, 0.0f, 1.0f*0.1f);
 
     // Fuel pressure in kilo-Pascals
     // Range of fuelPressure is 0.0f to 1310.7f.
@@ -2539,7 +2539,7 @@ int decodeECU_PumpConfigPacketStructure(const void* _pg_pkt, ECU_PumpSettings_t*
 
     // Fuel pump proportional gain
     // Range of kp is 0.0f to 655.35f.
-    _pg_user->kp = float32ScaledFrom2UnsignedBeBytes(_pg_data, &_pg_byteindex, 0.0f, 1.0f/100.0f);
+    _pg_user->kp = float32ScaledFrom2UnsignedBeBytes(_pg_data, &_pg_byteindex, 0.0f, 1.0f*0.01f);
 
     // Pump low pressure limit in kilo-Pascals
     // Range of pressureLowerLimit is 0.0f to 4518.40871f.

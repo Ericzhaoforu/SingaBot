@@ -773,7 +773,7 @@ void AP_Vehicle::update_throttle_notch(AP_InertialSensor::HarmonicNotch &notch)
     const float motors_throttle = motors != nullptr ? MAX(0,motors->get_throttle_out()) : 0;
 #else  // APM_BUILD_Rover
     const AP_MotorsUGV *motors = AP::motors_ugv();
-    const float motors_throttle = motors != nullptr ? abs(motors->get_throttle() / 100.0f) : 0;
+    const float motors_throttle = motors != nullptr ? abs(motors->get_throttle() * 0.01f) : 0;
 #endif
 
     float throttle_freq = ref_freq * sqrtf(MAX(0,motors_throttle) / ref);

@@ -191,7 +191,7 @@ uint16_t RCOutput::read(uint8_t chan)
     pwm_out &out = pwm_group_list[chan];
     double freq = mcpwm_get_frequency(out.unit_num, out.timer_num);
     double dprc = mcpwm_get_duty(out.unit_num, out.timer_num, out.op);
-    return (1000000.0 * (dprc / 100.)) / freq;
+    return (1000000.0 * (dprc * 0.01)) / freq;
 }
 
 void RCOutput::read(uint16_t *period_us, uint8_t len)
