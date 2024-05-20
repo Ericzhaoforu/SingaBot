@@ -134,6 +134,7 @@ void AC_AutoTune_Heli::test_init()
     AC_AutoTune_FreqResp::ResponseType resp_type = AC_AutoTune_FreqResp::ResponseType::RATE;
     FreqRespCalcType calc_type = RATE;
     FreqRespInput freq_resp_input = TARGET;
+    float freq_resp_amplitude = 5.0f;  // amplitude in deg
     switch (tune_type) {
     case RFF_UP:
         if (!is_positive(next_test_freq)) {
@@ -144,7 +145,20 @@ void AC_AutoTune_Heli::test_init()
         stop_freq = start_freq;
 
         attitude_control->bf_feedforward(false);
-        attitude_control->use_sqrt_controller(false);
+        attitude_control->use_sqrt_controller(true); // invoke rate and acceleration limits to provide square wave rate response.
+        switch (axis) {
+        case ROLL:
+            attitude_control->set_ang_vel_roll_max_degs(5.0f);
+            break;
+        case PITCH:
+            attitude_control->set_ang_vel_pitch_max_degs(5.0f);
+            break;
+        case YAW:
+        case YAW_D:
+            attitude_control->set_ang_vel_yaw_max_degs(5.0f);
+            break;
+        }
+        freq_resp_amplitude = 10.0f;  // increase amplitude with limited rate to get desired square wave rate response
 
         // variables needed to initialize frequency response object and test method
         resp_type = AC_AutoTune_FreqResp::ResponseType::RATE;
@@ -248,7 +262,7 @@ void AC_AutoTune_Heli::test_init()
 
 
     // initialize dwell test method
-    dwell_test_init(start_freq, stop_freq, start_freq, freq_resp_input, calc_type, resp_type, input_type);
+    dwell_test_init(start_freq, stop_freq, start_freq, freq_resp_amplitude, freq_resp_input, calc_type, resp_type, input_type);
 
     start_angles = Vector3f(roll_cd, pitch_cd, desired_yaw_cd);  // heli specific
 }
@@ -694,12 +708,14 @@ void AC_AutoTune_Heli::report_axis_gains(const char* axis_string, float rate_P, 
     gcs().send_text(MAV_SEVERITY_NOTICE,"AutoTune: %s Angle P:%0.2f, Max Accel:%0.0f",axis_string,angle_P,max_accel);
 }
 
-void AC_AutoTune_Heli::dwell_test_init(float start_frq, float stop_frq, float filt_freq, FreqRespInput freq_resp_input, FreqRespCalcType calc_type, AC_AutoTune_FreqResp::ResponseType resp_type, AC_AutoTune_FreqResp::InputType waveform_input_type)
+void AC_AutoTune_Heli::dwell_test_init(float start_frq, float stop_frq, float amplitude, float filt_freq, FreqRespInput freq_resp_input, FreqRespCalcType calc_type, AC_AutoTune_FreqResp::ResponseType resp_type, AC_AutoTune_FreqResp::InputType waveform_input_type)
 {
     test_input_type = waveform_input_type;
     test_freq_resp_input = freq_resp_input;
     test_calc_type = calc_type;
     test_start_freq = start_frq;
+    //target attitude magnitude
+    tgt_attitude = amplitude * 0.01745f;
 
     // initialize frequency response object
     if (test_input_type == AC_AutoTune_FreqResp::InputType::SWEEP) {
@@ -754,7 +770,6 @@ void AC_AutoTune_Heli::dwell_test_run(sweep_info &test_data)
     float gyro_reading = 0.0f;
     float command_reading = 0.0f;
     float tgt_rate_reading = 0.0f;
-    float tgt_attitude;
     const uint32_t now = AP_HAL::millis();
     float target_angle_cd = 0.0f;
     float dwell_freq = test_start_freq;
@@ -763,9 +778,6 @@ void AC_AutoTune_Heli::dwell_test_run(sweep_info &test_data)
     if (!is_zero(dwell_freq)) {
         cycle_time_ms = 1000.0f * M_2PI / dwell_freq;
     }
-
-    //Determine target attitude magnitude limiting acceleration and rate
-    tgt_attitude = 5.0f * 0.01745f;
 
     // body frame calculation of velocity
     Vector3f velocity_ned, velocity_bf;
