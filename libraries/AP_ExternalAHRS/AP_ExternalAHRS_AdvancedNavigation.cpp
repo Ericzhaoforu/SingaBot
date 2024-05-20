@@ -162,21 +162,6 @@ AP_ExternalAHRS_AdvancedNavigation::AP_ExternalAHRS_AdvancedNavigation(AP_Extern
     if (!hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_ExternalAHRS_AdvancedNavigation::update_thread, void), "AHRS", 2048, AP_HAL::Scheduler::PRIORITY_SPI, 0)) {
         AP_HAL::panic("Failed to start ExternalAHRS update thread");
     }
-
-    uint32_t tstart = AP_HAL::millis();
-
-    while (!_last_device_info_pkt_ms)
-    {
-        const uint32_t tnow = AP_HAL::millis();
-        if (tnow - tstart >= AN_TIMEOUT)
-        {
-            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "ExternalAHRS: Advanced Navigation Device Unresponsive");
-            tstart = tnow;
-        }
-        hal.scheduler->delay(50);
-    }
-
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "ExternalAHRS initialised: %s", get_name());
 }
 
 void AP_ExternalAHRS_AdvancedNavigation::update()
@@ -187,6 +172,33 @@ void AP_ExternalAHRS_AdvancedNavigation::update()
 void AP_ExternalAHRS_AdvancedNavigation::update_thread(void)
 {
     _uart->begin(_baudrate);
+
+    uint32_t tstart = AP_HAL::millis();
+
+    (void) request_device_information();
+
+    // Ensure device is responsive by requesting its information.
+    while (!_last_device_info_pkt_ms)
+    {
+        const uint32_t tnow = AP_HAL::millis();
+        if (tnow - tstart >= AN_TIMEOUT)
+        {
+            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "ExternalAHRS: Advanced Navigation Device Unresponsive");
+            if (!request_device_information())
+            {
+                GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "ExternalAHRS: Request Data Error");
+            }
+            tstart = tnow;
+        }
+
+        // Collect the requested packets from the UART manager
+        // This will still process all received packets like normal and feed data out. This ensures that it won't fail completely if the TX fails.
+        if (!get_packets()) {
+            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "ExternalAHRS: Error Receiving Initialization Packets");
+        }
+    }
+
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "ExternalAHRS initialised: %s", get_name());
 
     while (true) {
         // Request data. If error occurs notify.
@@ -240,15 +252,18 @@ bool AP_ExternalAHRS_AdvancedNavigation::get_packets(void)
     return true;
 }
 
+bool AP_ExternalAHRS_AdvancedNavigation::request_device_information(void)
+{
+    return !(_uart->txspace() < sizeof(request_an_info) || _uart->write(request_an_info, sizeof(request_an_info)) != sizeof(request_an_info));
+}
+
 bool AP_ExternalAHRS_AdvancedNavigation::request_data(void)
 {
-
     // Update device info every 20 secs
-    if ((AP_HAL::millis() - _last_device_info_pkt_ms > 20000) || (_last_device_info_pkt_ms == 0)) {
-        if (_uart->txspace() < sizeof(request_an_info)) {
+    if ((AP_HAL::millis() - _last_device_info_pkt_ms > 20000) || !_last_device_info_pkt_ms) {
+        if (!request_device_information()) {
             return false;
         }
-        _uart->write(request_an_info, sizeof(request_an_info));
     }
 
     // Don't send a packet request unless the device is healthy

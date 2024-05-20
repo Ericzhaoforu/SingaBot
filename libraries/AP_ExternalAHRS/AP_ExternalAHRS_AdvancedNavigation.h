@@ -522,6 +522,7 @@ private:
 
     void update_thread();
     bool get_packets(void);
+    bool request_device_information(void);
     bool request_data(void);
     bool sendPacketRequest(void);
     bool get_gnss_capability(void) const;
