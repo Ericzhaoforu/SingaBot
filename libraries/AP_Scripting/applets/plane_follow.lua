@@ -13,10 +13,9 @@ local PARAM_TABLE_PREFIX = "FOLL_"
 
 local MAV_SEVERITY = {EMERGENCY=0, ALERT=1, CRITICAL=2, ERROR=3, WARNING=4, NOTICE=5, INFO=6, DEBUG=7}
 
-local MODE_QLAND = 20
-local MODE_QLOITER = 19
 local MODE_GUIDED = 15
 local MODE_RTL = 11
+local MODE_LOITER = 12
 
 local ALT_FRAME_ABSOLUTE = 0
 
@@ -36,86 +35,32 @@ end
 -- setup follow mode specific parameters
 assert(param:add_table(PARAM_TABLE_KEY, PARAM_TABLE_PREFIX, 10), 'could not add param table')
 
--- All of the parameters here are modeled after Copter FOLLOW mode
+-- This uses the exisitng FOLL_* parameters and just adds a couple specific to this script
+-- FOLL_
+-- FOLL_OFS_X = bind_param('FOLL_OFS_X')
+-- FOLL_OFS_Y = bind_param('FOLL_OFS_Y')
+-- FOLL_OFS_Z = bind_param('FOLL_OFS_Z')
+-- FOLL_POS_P = bind_param('FOLL_POS_P')
 
---[[
-  // @Param: FOLL_SYSID
-  // @DisplayName: Plane Follow target mavlink system id
-  // @Description: The altitude (rangefinder distance) below which we stop using the precision landing sensor and continue landing
-  // @Range: 0 255
-  // @User: Standard
---]]
---FOLL_SYSID = bind_add_param('SYSID', 1, 0)
-
---[[
-  // @Param: FOLL_DIST_MAX
-  // @DisplayName: Plane Follow maximum distance
-  // @Description: The distance from target beyond which the target is ignored
-  // @Range: 0 1000
-  // @Units: m
-  // @User: Standard
---]]
---FOLL_DIST_MAX = bind_add_param('DIST_MAX', 2, 0)
-
---[[
-  // @Param: FOLL_OFS_X
-  // @DisplayName: Plane Follow offset in meters forward/backward
-  // @Description: Follow offsets in meters forward. Positive means fly ahead of the target, negative means fly behind.
-  // @Range: -100 100
-  // @Units: m
-  // @User: Standard
---]]
---FOLL_OFS_X = bind_add_param('OFS_X', 3, 0
-FOLL_OFS_X = bind_param('FOLL_OFS_X')
-
---[[
-  // @Param: PFOLL_OFS_Y
-  // @DisplayName: Plane Follow offset in meters right/left
-  // @Description: Follow offsets in meters right/left. Positive means fly right of the target, negative means fly left.
-  // @Range: -100 100
-  // @Units: m
-  // @User: Standard
---]]
---PFOLL_OFS_Y = bind_add_param('_OFS_Y', 4, 0)
-FOLL_OFS_Y = bind_param('FOLL_OFS_Y')
-
---[[
-  // @Param: PFOLL_OFS_Z
-  // @DisplayName: Plane Follow offset in meters down/up
-  // @Description: Follow offsets in meters down. Positive means fly below of the target, negative means fly above.
-  // @Range: -100 100
-  // @Units: m
-  // @User: Standard
---]]
---PFOLL_OFS_Z = bind_add_param('_OFS_Z', 5, 0)
-FOLL_OFS_Z = bind_param('FOLL_OFS_Z')
-
---[[
-  // @Param: FOLL_POS_P
-  // @DisplayName: Plane Follow position error P gain
-  // @Description: Follow position error P gain. Converts the difference between desired vertical speed and actual speed into a desired acceleration that is passed to the throttle acceleration controller
-  // @Range: 0.01 1
-  // @User: Standard
---]]
---PFOLL_POS_P = bind_add_param('_POS_P', 6, 0)
-FOLL_POS_P = bind_param('FOLL_POS_P')
+-- we need these existing FOLL_ parametrs
 FOLL_ALT_TYPE = bind_param('FOLL_ALT_TYPE')
 
+-- Add these FOLL_ parameters specifically for this script
 --[[
   // @Param: FOLL_FAIL_MODE
   // @DisplayName: Plane Follow lost target mode
-  // @Description: Mode to switch to if the target is lost (no signal or > PFOLL_DIST_MAX). Defaults to RTL.
+  // @Description: Mode to switch to if the target is lost (no signal or > FOLL_DIST_MAX). 
   // @User: Standard
 --]]
-FOLL_FAIL_MODE = bind_add_param('FAIL_MODE', 7, 11)
+FOLL_FAIL_MODE = bind_add_param('FAIL_MODE', 7, MODE_RTL)
 
 --[[
   // @Param: FOLL_EXIT_MODE
   // @DisplayName: Plane Follow exit mode
-  // @Description: Mode to switch to when follow mode is exited.
+  // @Description: Mode to switch to when follow mode is exited normally
   // @User: Standard
 --]]
-FOLL_EXIT_MODE = bind_add_param('EXIT_MODE', 8, 11)
+FOLL_EXIT_MODE = bind_add_param('EXIT_MODE', 8, MODE_LOITER)
 
 --[[
     // @Param: FOLL_ACT_FN
@@ -125,105 +70,9 @@ FOLL_EXIT_MODE = bind_add_param('EXIT_MODE', 8, 11)
 --]]
 FOLL_ACT_FN = bind_add_param("ACT_FN", 9, 301)
 
-
---[[
-    // @Param: FOLL_VEL_DZ
-    // @DisplayName: Plane Follow Deadzone
-    // @Description: Assume plane is "close enough" if less than this distance from the target.
-    // @Units: m
-    // @Range: 0 50
---]]
-FOLL_VEL_DZ = bind_add_param("VEL_DZ", 10, 10)
-
 last_follow_active_state = rc:get_aux_cached(FOLL_ACT_FN:get())
 
 local have_target = false
-
---[[
-   import mavlink support for NAMED_VALUE_FLOAT, only used for
-   DUAL_AIRCRAFT operation
-
-local function mavlink_receiver()
-   local self = {}
-   local mavlink_msgs = require("mavlink_msgs")
-   local GLOBAL_POSITION_INT_msgid = mavlink_msgs.get_msgid("GOBAL_POSITION_INT")
-   local msg_map = {}
-   local jitter_correction = JitterCorrection(5000, 100)
-
-   msg_map[NAMED_VALUE_FLOAT_msgid] = "NAMED_VALUE_FLOAT"
-
-   -- initialise mavlink rx with number of messages, and buffer depth
-   mavlink.init(1, 10)
-
-   -- register message id to receive
-   mavlink.register_rx_msgid(GLOBAL_POSITION_INT_msgid)
-
---get a GLOBAL_POSITION_INT_msgid incoming message, but only from the target SYSID
-   function self.get_global_position_int()
-      local msg,_,timestamp_ms = mavlink.receive_chan()
-      if msg then
-         local parsed_msg = mavlink_msgs.decode(msg, msg_map)
-         if (parsed_msg ~= nil) and (parsed_msg.msgid == GLOBAL_POSITION_INT_msgid) then
-            if (PFOLL_SYSID:get() ~= nil) and parsed_msg.sysid == PFOLL_SYSID:get()) then
-               -- convert remote timestamp to local timestamp with jitter correction
-               local time_boot_ms = jitter_correction.correct_offboard_timestamp_msec(parsed_msg.time_boot_ms, timestamp_ms:toint())
-               local value = parsed_msg.value
-               local name = bytes_to_string(parsed_msg.name)
-               return time_boot_ms, name, value, parsed_msg.sysid
-            end
-         end
-      end
-      return nil
-   end
-
-   return self
-end
-
-// handle a GLOBAL_POSITION_INT message
-bool AP_Mount_Backend::handle_global_position_int(uint8_t msg_sysid, const mavlink_global_position_int_t &packet)
-{
-    if (_target_sysid != msg_sysid) {
-        return false;
-    }
-
-    _target_sysid_location.lat = packet.lat;
-    _target_sysid_location.lng = packet.lon;
-    // global_position_int.alt is *UP*, so is location.
-    _target_sysid_location.set_alt_cm(packet.alt*0.1, Location::AltFrame::ABSOLUTE);
-    _target_sysid_location_set = true;
-
-    return true;
-}
-
-local mavlink_handler = nil
-mavlink_handler = mavlink_receiver()
-
---[[
-   update the have_target variable
---]]
-local function update_target()
-   if not precland:healthy() then
-      have_target = false
-      return
-   end
-   local ok = precland:target_acquired()
-
-   if PFOLL_ALT_CUTOFF:get() > 0 then
-      -- require rangefinder as well
-      if not rangefinder:has_data_orient(rangefinder_orient) then
-         ok = false
-      end
-   end
-   
-   if ok ~= have_target then
-      have_target = ok
-      if have_target then
-         gcs:send_text(MAV_SEVERITY.INFO, "Plane Follow: Target Acquired")
-      else
-         gcs:send_text(MAV_SEVERITY.INFO, "Plane Follow: Target Lost")
-      end
-   end
-end
 
 --[[
    return true if we are in a state where follow can apply
@@ -262,7 +111,7 @@ local function follow_check()
       elseif (active_state == 2) then
          -- Follow enabled - switch to guided mode
          vehicle:set_mode(MODE_GUIDED)
-         -- Force Guided Mode to not loiter by setting a tiny loiter radius.
+         -- Force Guided Mode to not loiter by setting a tiny loiter radius. Otherwise Guide Mode will try loiter around the target vehichle when it gets inside WP_LOITER_RAD
          vehicle:set_guided_radius_and_direction(2, false)
          follow_enabled = true
          gcs:send_text(MAV_SEVERITY.INFO, "Plane Follow: enabled")
@@ -298,8 +147,7 @@ local function update()
    -- just because of the methods available on AP_Follow, need to call these two methods 
    -- to get target_location, target_velocity, target distance and target 
    -- and yes target_offsets (hopefully the same value) is returned by both methods
-   --target_location, target_velocity = follow:get_target_location_and_velocity()
-   -- even worse - bot internally call get_target_lcoation_and_Velocity, but making a single method
+   -- even worse - both internally call get_target_lcoation_and_Velocity, but making a single method
    -- in AP_Follow is probably a high flash cost, so we just take the runtime hit
    target_location, target_offsets = follow:get_target_location_and_velocity_ofs()
    target_distance, target_offsets, target_velocity = follow:get_target_dist_and_vel_ned()
