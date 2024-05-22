@@ -27,6 +27,7 @@
 #include <AP_HAL/AP_HAL.h>
 #include <AP_HAL/utility/sparse-endian.h>
 #include <AP_Math/AP_Math.h>
+#include <GCS_MAVLink/GCS.h>
 
 #define QMC5883L_REG_CONF1 0x09
 #define QMC5883L_REG_CONF2 0x0A
@@ -165,7 +166,8 @@ void AP_Compass_QMC5883L::timer()
     	le16_t rz;
     } buffer;
 
-    const float range_scale = 1000.0f / 3000.0f;
+    /* Most modules deliver a value four times higher */
+    const float range_scale = 1000.0f / (3000.0f  * 4.0f);
 
     uint8_t status;
     if(!_dev->read_registers(QMC5883L_REG_STATUS,&status,1)){
