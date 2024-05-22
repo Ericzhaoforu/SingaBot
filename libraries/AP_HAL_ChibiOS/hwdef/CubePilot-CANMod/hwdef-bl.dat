@@ -1,5 +1,11 @@
 # hw definition file for processing by chibios_hwdef.py
 
+# USB setup
+USB_VENDOR 0x2DAE # ONLY FOR USE BY CubePilot! NOBODY ELSE
+USB_PRODUCT 0x2010
+USB_STRING_MANUFACTURER "CubePilot"
+USB_STRING_PRODUCT "CubeNode"
+
 # MCU class and specific type
 MCU STM32H7xx STM32H757xx
 define CORE_CM7
