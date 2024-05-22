@@ -878,7 +878,6 @@ void AP_Vehicle::update_dynamic_notch_at_specified_rate()
         }
     }
 }
-#endif  // AP_INERTIALSENSOR_HARMONICNOTCH_ENABLED
 
 /*
   update dynamic notches if not using rate thread
@@ -889,6 +888,8 @@ void AP_Vehicle::update_dynamic_notches()
         update_dynamic_notch_at_specified_rate();
     }
 }
+
+#endif  // AP_INERTIALSENSOR_HARMONICNOTCH_ENABLED
 
 void AP_Vehicle::notify_no_such_mode(uint8_t mode_number)
 {
