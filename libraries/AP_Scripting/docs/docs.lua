@@ -2350,6 +2350,12 @@ function vehicle:nav_scripting_enable(param1) end
 function vehicle:set_desired_speed(param1) end
 
 -- desc
+---@return boolean
+---@param radius float
+---@param direction_is_ccw boolean
+function vehicle:set_guided_radius_and_direction() end
+
+-- desc
 ---@param param1 number
 ---@param param2 number
 ---@return boolean
@@ -3301,6 +3307,12 @@ function follow:get_target_location_and_velocity_ofs() end
 function follow:get_target_location_and_velocity() end
 
 -- desc
+---@return Vector3f_ud|nil
+---@return Vector3f_ud|nil
+---@return Vector3f_ud|nil
+function follow:get_target_dist_and_vel_ned() end
+
+-- desc
 ---@return uint32_t_ud
 function follow:get_last_update_ms() end
 
@@ -3309,6 +3321,15 @@ function follow:get_last_update_ms() end
 function follow:have_target() end
 
 -- desc
+---@return uint8_t_ud
+function follow:get_target_sysid() end
+
+-- desc
+---@return float
+function follow:get_distance_to_target() end
+
+-- desc
+---@class scripting
 scripting = {}
 
 -- desc
