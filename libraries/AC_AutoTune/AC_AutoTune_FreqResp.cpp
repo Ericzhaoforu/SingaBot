@@ -25,8 +25,12 @@ void AC_AutoTune_FreqResp::init(InputType input_type, ResponseType response_type
     max_accel = 0.0f;
     max_meas_rate = 0.0f;
     max_command = 0.0f;
-    meas_peak_info_buffer.clear();
-    tgt_peak_info_buffer.clear();
+    if (meas_peak_info_buffer != nullptr) {
+        meas_peak_info_buffer->clear();
+    }
+    if (tgt_peak_info_buffer != nullptr) {
+        tgt_peak_info_buffer->clear();
+    }
     cycle_complete = false;
 }
 
@@ -71,7 +75,7 @@ void AC_AutoTune_FreqResp::update(float command, float tgt_resp, float meas_resp
     }
 
     // cycles are complete! determine gain and phase and exit
-    if (max_meas_cnt > AUTOTUNE_DWELL_CYCLES + 1 && max_target_cnt > AUTOTUNE_DWELL_CYCLES + 1 && excitation == DWELL) {
+    if (max_meas_cnt > dwell_cycles + 1 && max_target_cnt > dwell_cycles + 1 && excitation == DWELL) {
         float delta_time = 0.0f;
         float sum_gain = 0.0f;
         uint8_t cnt = 0;
@@ -81,7 +85,7 @@ void AC_AutoTune_FreqResp::update(float command, float tgt_resp, float meas_resp
         float tgt_ampl = 0.0f;
         uint32_t meas_time = 0;
         uint32_t tgt_time = 0;
-        for (uint8_t i = 0;  i < AUTOTUNE_DWELL_CYCLES; i++) {
+        for (uint8_t i = 0;  i < dwell_cycles; i++) {
             meas_cnt=0;
             tgt_cnt=0;
             pull_from_meas_buffer(meas_cnt, meas_ampl, meas_time);
@@ -258,14 +262,14 @@ void AC_AutoTune_FreqResp::push_to_meas_buffer(uint16_t count, float amplitude, 
     sample.curr_count = count;
     sample.amplitude = amplitude;
     sample.time_ms = time_ms;
-    meas_peak_info_buffer.push(sample);
+    meas_peak_info_buffer->push(sample);
 }
 
 // pull measured peak info from buffer
 void AC_AutoTune_FreqResp::pull_from_meas_buffer(uint16_t &count, float &amplitude, uint32_t &time_ms)
 {
     peak_info sample;
-    if (!meas_peak_info_buffer.pop(sample)) {
+    if (!meas_peak_info_buffer->pop(sample)) {
         // no sample
         return;
     }
@@ -281,7 +285,7 @@ void AC_AutoTune_FreqResp::push_to_tgt_buffer(uint16_t count, float amplitude, u
     sample.curr_count = count;
     sample.amplitude = amplitude;
     sample.time_ms = time_ms;
-    tgt_peak_info_buffer.push(sample);
+    tgt_peak_info_buffer->push(sample);
 
 }
 
@@ -289,11 +293,21 @@ void AC_AutoTune_FreqResp::push_to_tgt_buffer(uint16_t count, float amplitude, u
 void AC_AutoTune_FreqResp::pull_from_tgt_buffer(uint16_t &count, float &amplitude, uint32_t &time_ms)
 {
     peak_info sample;
-    if (!tgt_peak_info_buffer.pop(sample)) {
+    if (!tgt_peak_info_buffer->pop(sample)) {
         // no sample
         return;
     }
     count = sample.curr_count;
     amplitude = sample.amplitude;
     time_ms = sample.time_ms;
+}
+
+void AC_AutoTune_FreqResp::set_dwell_cycles(uint8_t cycles)
+{
+    dwell_cycles = cycles;
+    if (meas_peak_info_buffer != nullptr) { delete meas_peak_info_buffer;}
+    meas_peak_info_buffer = new ObjectBuffer<peak_info>(cycles);
+    if (tgt_peak_info_buffer != nullptr) { delete tgt_peak_info_buffer;}
+    tgt_peak_info_buffer = new ObjectBuffer<peak_info>(cycles);
+
 }
