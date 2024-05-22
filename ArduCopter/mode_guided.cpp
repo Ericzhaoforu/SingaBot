@@ -409,10 +409,9 @@ bool ModeGuided::get_wp(Location& destination) const
         destination = Location(guided_pos_target_cm.tofloat(), guided_pos_terrain_alt ? Location::AltFrame::ABOVE_TERRAIN : Location::AltFrame::ABOVE_ORIGIN);
         return true;
     default:
-        return false;
+        break;
     }
 
-    // should never get here but just in case
     return false;
 }
 
