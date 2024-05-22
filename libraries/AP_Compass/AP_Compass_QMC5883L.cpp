@@ -99,14 +99,14 @@ bool AP_Compass_QMC5883L::init()
     	 goto fail;
     }
 
+    /* Registers 0x20 and 0x21 are not documented in the data sheet and do not show any function during operation */
+
     if (!_dev->write_register(0x0B, 0x01)||
-    	 !_dev->write_register(0x20, 0x40)||
-		 !_dev->write_register(0x21, 0x01)||
-		 !_dev->write_register(QMC5883L_REG_CONF1,
-						QMC5883L_MODE_CONTINUOUS|
-						QMC5883L_ODR_100HZ|
-						QMC5883L_OSR_512|
-						QMC5883L_RNG_8G)) {
+        !_dev->write_register(QMC5883L_REG_CONF1,
+				QMC5883L_MODE_CONTINUOUS|
+				QMC5883L_ODR_100HZ|
+				QMC5883L_OSR_512|
+				QMC5883L_RNG_8G)) {
     		  	  goto fail;
      }
 
