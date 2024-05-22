@@ -128,6 +128,9 @@ class ChibiOSHWDef(object):
         # list of shared up timers
         self.shared_up = []
 
+        # a map from a serial number (0 being USB) to the usual use of that port (e.g. Telem1)
+        self.serial_purpose = {}
+
     def is_int(self, str):
         '''check if a string is an integer'''
         try:
@@ -1801,6 +1804,28 @@ INCLUDE common.ld
             return default
         return p.extra_value(name, type=str, default=default)
 
+    def get_UART_ORDER(self):
+        '''get UART_ORDER from SERIAL_ORDER option'''
+        if self.get_config('UART_ORDER', required=False, aslist=True) is not None:
+            self.error('Please convert UART_ORDER to SERIAL_ORDER')
+        serial_order = self.get_config('SERIAL_ORDER', required=False, aslist=True)
+        if serial_order is None:
+            return None
+        if self.is_bootloader_fw():
+            # in bootloader SERIAL_ORDER is treated the same as UART_ORDER
+            return serial_order
+        map = [0, 3, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        while len(serial_order) < 4:
+            serial_order += ['EMPTY']
+        uart_order = []
+        for i in range(len(serial_order)):
+            uart_order.append(serial_order[map[i]])
+        return uart_order
+
+    def get_serial_purpose(self):
+        '''returns a dict mapping from serial number (0 is USB) to textual description of purpose'''
+        return self.serial_purpose
+
     def write_UART_config(self, f):
         '''write UART config defines'''
         serial_list = self.get_config('SERIAL_ORDER', required=False, aslist=True)
@@ -2446,6 +2471,23 @@ Please run: Tools/scripts/build_bootloaders.py %s
         (USB_VID, USB_PID) = self.get_USB_IDs()
         self.env_vars['USBID'] = '0x%04x/0x%04x' % (USB_VID, USB_PID)
 
+    def serial_has_cts_rts(self, serial):
+        '''returns true if serial "serial" has CTS/RTS pins associated'''
+        uart_order = self.get_config('SERIAL_ORDER', required=True, aslist=True)
+        uart_name = uart_order[serial]
+        have_cts = False
+        have_rts = False
+
+        for t in self.bytype.values():
+            for pin in t:
+                if pin.label == f"{uart_name}_CTS":
+                    have_cts = True
+                elif pin.label == f"{uart_name}_RTS":
+                    have_rts = True
+                if have_rts and have_cts:
+                    return True
+        return False
+
     def write_peripheral_enable(self, f):
         '''write peripheral enable lines'''
         f.write('// peripherals enabled\n')
@@ -3058,6 +3100,8 @@ Please run: Tools/scripts/build_bootloaders.py %s
                         # raise ValueError(msg)
 
                 self.intdefines[name] = intvalue
+        elif a[0] == "SERIAL_PURPOSE":
+            self.serial_purpose[int(a[1])] = ' '.join(a[2:])
 
     def progress(self, message):
         if self.quiet:
