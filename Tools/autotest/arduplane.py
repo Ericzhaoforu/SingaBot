@@ -5356,6 +5356,35 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
         self.disarm_vehicle(force=True)
         self.reboot_sitl()
 
+    def TECSDescendPitch(self):
+        '''check TECS doesn't over-speed when descending'''
+        self.set_parameters({
+            "TECS_SINK_MAX": 300,
+        })
+
+        airspeed_max = 10
+        self.set_parameter('AIRSPEED_MAX', airspeed_max)
+
+        self.takeoff(400, mode='TAKEOFF', timeout=240)
+
+        loc = self.mav.location()
+        new_alt = 10
+        self.run_cmd_int(
+            mavutil.mavlink.MAV_CMD_DO_REPOSITION,
+            p2=mavutil.mavlink.MAV_DO_REPOSITION_FLAGS_CHANGE_MODE,
+            p5=int(loc.lat * 1e7),
+            p6=int(loc.lng * 1e7),
+            p7=new_alt,    # alt
+            frame=mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
+        )
+
+        self.wait_message_field_values('VFR_HUD', {
+            "airspeed": airspeed_max,
+        }, minimum_duration=30, timeout=90, epsilon=1)
+
+        self.disarm_vehicle(force=True)
+        self.reboot_sitl()
+
     def tests(self):
         '''return list of all tests'''
         ret = super(AutoTestPlane, self).tests()
@@ -5466,6 +5495,7 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
             self.MAV_CMD_NAV_RETURN_TO_LAUNCH,
             self.MinThrottle,
             self.ClimbThrottleSaturation,
+            self.TECSDescendPitch,
         ])
         return ret
 
