@@ -55,6 +55,11 @@ MAIN_STACK 0x180
 
 #undef STM32_ST_USE_TIMER
 
+undef OSCILLATOR_HZ
+
+# crystal frequency
+OSCILLATOR_HZ 8000000
+
 # directly define DMA channels
 DMA_NOMAP 1
 
