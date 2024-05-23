@@ -209,17 +209,34 @@ ioline_t GPIO::resolve_alt_config(ioline_t base, PERIPH_TYPE ptype, uint8_t inst
 }
 
 
-void GPIO::pinMode(uint8_t pin, uint8_t output)
+void GPIO::pinMode(uint8_t pin, uint8_t pin_type)
 {
     struct gpio_entry *g = gpio_by_pin_num(pin);
     if (g) {
-        if (!output && g->is_input &&
+        if (pin_type != 1 && g->is_input &&
             (g->mode == PAL_MODE_INPUT_PULLUP ||
              g->mode == PAL_MODE_INPUT_PULLDOWN)) {
             // already set
             return;
         }
-        g->mode = output?PAL_MODE_OUTPUT_PUSHPULL:PAL_MODE_INPUT;
+        switch(pin_type) {
+        case 0:
+            g->mode = PAL_MODE_INPUT;
+            g->is_input = 1;
+            break;
+        case 1:
+            g->mode = PAL_MODE_OUTPUT_PUSHPULL;
+            g->is_input = 0;
+            break;
+        case 2:
+            g->mode = PAL_MODE_INPUT_PULLUP;
+            g->is_input = 1;
+            break;
+        case 3:
+            g->mode = PAL_MODE_INPUT_PULLDOWN;
+            g->is_input = 1;
+            break;
+        }
 #if defined(STM32F7) || defined(STM32H7) || defined(STM32F4) || defined(STM32G4) || defined(STM32L4) || defined(STM32L4PLUS)
         if (g->mode == PAL_MODE_OUTPUT_PUSHPULL) {
             // retain OPENDRAIN if already set
@@ -230,7 +247,6 @@ void GPIO::pinMode(uint8_t pin, uint8_t output)
         }
 #endif
         palSetLineMode(g->pal_line, g->mode);
-        g->is_input = !output;
     }
 }
 

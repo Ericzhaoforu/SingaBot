@@ -34,7 +34,7 @@ class ChibiOS::GPIO : public AP_HAL::GPIO {
 public:
     GPIO();
     void    init() override;
-    void    pinMode(uint8_t pin, uint8_t output) override;
+    void    pinMode(uint8_t pin, uint8_t pin_type) override;
     uint8_t read(uint8_t pin) override;
     void    write(uint8_t pin, uint8_t value) override;
     void    toggle(uint8_t pin) override;
