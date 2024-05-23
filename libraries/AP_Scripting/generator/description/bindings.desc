@@ -337,6 +337,7 @@ singleton AP_Vehicle method set_target_throttle_rate_rpy void float -100 100 flo
 singleton AP_Vehicle method set_rudder_offset void float'skip_check boolean
 singleton AP_Vehicle method set_desired_turn_rate_and_speed boolean float'skip_check float'skip_check
 singleton AP_Vehicle method set_desired_speed boolean float'skip_check
+singleton AP_Vehicle method set_guided_radius_and_direction boolean float'skip_check boolean
 singleton AP_Vehicle method nav_scripting_enable boolean uint8_t'skip_check
 singleton AP_Vehicle method set_velocity_match boolean Vector2f
 singleton AP_Vehicle method set_land_descent_rate boolean float'skip_check
@@ -534,6 +535,10 @@ singleton QuadPlane method in_assisted_flight boolean
 singleton QuadPlane method abort_landing boolean
 singleton QuadPlane method in_vtol_land_descent boolean
 
+include ../ArduPlane/mode.h depends APM_BUILD_TYPE(APM_BUILD_ArduPlane)
+userdata ModeGuided rename modeguided
+userdata ModeGuided method set_radius_and_direction void float'skip_check boolean 
+
 include ../ArduSub/Sub.h depends APM_BUILD_TYPE(APM_BUILD_ArduSub)
 singleton Sub rename sub
 singleton Sub depends APM_BUILD_TYPE(APM_BUILD_ArduSub)
@@ -714,9 +719,12 @@ include AP_Follow/AP_Follow.h
 singleton AP_Follow depends AP_FOLLOW_ENABLED && (APM_BUILD_TYPE(APM_BUILD_ArduPlane)||APM_BUILD_COPTER_OR_HELI)
 singleton AP_Follow rename follow
 singleton AP_Follow method have_target boolean
+singleton AP_Follow method get_target_sysid uint8_t
+singleton AP_Follow method get_distance_to_target float
 singleton AP_Follow method get_last_update_ms uint32_t
 singleton AP_Follow method get_target_location_and_velocity boolean Location'Null Vector3f'Null
 singleton AP_Follow method get_target_location_and_velocity_ofs boolean Location'Null Vector3f'Null
+singleton AP_Follow method get_target_dist_and_vel_ned boolean Vector3f'Null Vector3f'Null Vector3f'Null
 singleton AP_Follow method get_target_heading_deg boolean float'Null
 
 include AC_PrecLand/AC_PrecLand.h

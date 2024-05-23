@@ -963,6 +963,25 @@ bool Plane::flight_option_enabled(FlightOptions flight_option) const
     return g2.flight_options & flight_option;
 }
 
+// This will only apply in Guided mode, other modes ignore it
+// all the checks are in the Guided mode code, this is _desired_ speed
+bool Plane::set_desired_speed(float speed)
+{
+    plane.guided_state.target_airspeed_cm = speed * 100.0f;
+    plane.guided_state.target_airspeed_time_ms = AP_HAL::millis();
+
+    plane.calc_airspeed_errors();
+
+    return true;
+}
+
+// Helper function to let scripting set the guided mode radius
+bool Plane::set_guided_radius_and_direction(float radius, bool direction_is_ccw)
+{
+    plane.mode_guided.set_radius_and_direction(radius, direction_is_ccw);
+    return true;
+}
+
 #if AC_PRECLAND_ENABLED
 void Plane::precland_update(void)
 {

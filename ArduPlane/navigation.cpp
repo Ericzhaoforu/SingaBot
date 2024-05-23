@@ -203,6 +203,7 @@ void Plane::calc_airspeed_errors()
             target_airspeed_cm = constrain_float(MAX(guided_state.target_airspeed_cm, target_airspeed_cm), aparm.airspeed_min *100, aparm.airspeed_max *100);
         }
 
+    //GCS_SEND_TEXT(MAV_SEVERITY_INFO, "navigation guided  - airspeed target cm: %d", target_airspeed_cm);
 #endif // OFFBOARD_GUIDED == ENABLED
 
 #if HAL_SOARING_ENABLED
@@ -269,6 +270,8 @@ void Plane::calc_airspeed_errors()
 
     // Apply airspeed limit
     target_airspeed_cm = constrain_int32(target_airspeed_cm, aparm.airspeed_min*100, aparm.airspeed_max*100);
+
+    //GCS_SEND_TEXT(MAV_SEVERITY_INFO, "navigation - airspeed target cm: %d", target_airspeed_cm);
 
     // use the TECS view of the target airspeed for reporting, to take
     // account of the landing speed

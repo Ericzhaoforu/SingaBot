@@ -1045,6 +1045,8 @@ private:
     void update_flight_stage();
     void set_flight_stage(AP_FixedWing::FlightStage fs);
     bool flight_option_enabled(FlightOptions flight_option) const;
+    bool set_desired_speed(float speed) override;
+    bool set_guided_radius_and_direction(float radius, bool direction_is_ccw) override;
 
     // navigation.cpp
     void loiter_angle_reset(void);
