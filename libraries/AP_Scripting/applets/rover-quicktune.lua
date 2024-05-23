@@ -527,7 +527,9 @@ function update()
   end
 
   local sw_pos = rc:get_aux_cached(RTUN_RC_FUNC:get())
-  if not sw_pos then
+  if not sw_pos and get_time() > last_warning + 5 then
+    gcs:send_text(MAV_SEVERITY.CRITICAL, "RTun: scripting RC channel not found or not active")
+    last_warning = get_time()
     return
   end
 
