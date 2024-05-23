@@ -429,4 +429,22 @@ float Sub::get_alt_msl() const
     return -posD;
 }
 
+void Sub::set_origin(const Location& loc)
+{
+// check location is valid
+    if (!loc.check_latlng()) {
+        return;
+    }
+    // check if EKF origin has already been set
+    Location ekf_origin;
+    if (ahrs.get_origin(ekf_origin)) {
+        return;
+    }
+
+    if (!ahrs.set_origin(loc)) {
+        return;
+    }
+
+}
+
 AP_HAL_MAIN_CALLBACKS(&sub);

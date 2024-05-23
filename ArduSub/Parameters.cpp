@@ -706,7 +706,17 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
 
     // 18 was scripting
 
-    // 19 was airspeed
+    // @Param: HOME_LAT
+    // @DisplayName: Backup latitude for home position
+    // @Description:  Backup home latitude position used when not using a positioning system.
+    // @User: Standard
+    AP_GROUPINFO("HOME_LAT", 19, ParametersG2, backup_home_lat, 0),
+
+    // @Param: HOME_LON
+    // @DisplayName: Backup longitude for home position
+    // @Description:  Backup home longitude position used when not using a positioning system.
+    // @User: Standard
+    AP_GROUPINFO("HOME_LON", 20, ParametersG2, backup_home_lon, 0),
 
     AP_GROUPEND
 };
