@@ -253,7 +253,7 @@
 //////////////////////////////////////////////////////////////////////////////
 // Throw - fly vehicle after throwing it in the air
 #ifndef MODE_THROW_ENABLED
-# define MODE_THROW_ENABLED ENABLED
+# define MODE_THROW_ENABLED DISABLED
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
@@ -527,6 +527,7 @@
 # define AUTO_DISARMING_DELAY  10
 #endif
 
+#ifndef MODE_THROW_ENABLED
 //////////////////////////////////////////////////////////////////////////////
 // Throw mode configuration
 //
@@ -535,6 +536,7 @@
 #endif
 #ifndef THROW_VERTICAL_SPEED
 # define THROW_VERTICAL_SPEED   50.0f   // motors start when vehicle reaches this total 3D speed in cm/s
+#endif
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
