@@ -54,7 +54,7 @@
 class AP_Torqeedo_Backend : public AP_ESC_Telem_Backend {
 public:
     AP_Torqeedo_Backend(AP_Torqeedo_Params &params, uint8_t instance);
-
+    
     // do not allow copies
     CLASS_NO_COPY(AP_Torqeedo_Backend);
 

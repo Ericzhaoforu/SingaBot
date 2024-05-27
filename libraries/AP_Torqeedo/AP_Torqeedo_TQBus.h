@@ -91,6 +91,24 @@ private:
         BATTERY = 0x80
     };
 
+    // message addresses for Navy3.0
+    enum class MsgAddressNavy : uint8_t {
+        MOTOR_DRIVER = 0x01,
+        ADAPTER_BOARD = 0x02,
+        VERSION_DATA = 0x03,
+        THROTTLE_CONTROL_BOARD = 0x04
+    };
+
+    //Command code
+    enum class CommandCode : uint8_t {
+        GPS_INFO =0x20,
+        ADAPTER_BOARD_INFO = 0x22,
+        BATTERY_STATUS = 0x23,
+        GENERAL_INFO = 0x24,
+        MOTOR_INFO = 0x25,
+        MOTOR_VERSION_INFO = 0x26,
+        MOTOR_INFO_2 =0x27,
+    };
     // Remote specific message ids
     enum class RemoteMsgId : uint8_t {
         INFO = 0x00,
@@ -129,6 +147,9 @@ private:
 
     // process message held in _received_buff
     void parse_message();
+
+    //process message for Navy3.0
+    void parse_message_navy();
 
     // returns true if it is safe to send a message
     bool safe_to_send() const { return ((_send_delay_us == 0) && (_reply_wait_start_ms == 0)); }
@@ -236,6 +257,97 @@ private:
         };
         uint16_t value;
     } DisplaySystemStateFlags;
+    //Motor Err
+    typedef union PACKED {
+        struct {
+            uint8_t overvoltage :1;
+            uint8_t undervoltage :1;
+            uint8_t circuit_failure :1;
+            uint8_t charging :1;
+            uint8_t fan_fault :1;
+            uint8_t reserved3 :3;
+            uint8_t blocked :1;
+            uint8_t overtemp :1;
+            uint8_t MOS_overtemp :1;
+            uint8_t overcur :1;
+            uint8_t _8301_fault :1;
+            uint8_t communication_fault :1;
+            uint8_t temp_err :1;
+            uint8_t MOS_temp_alarm :1;
+        };
+        uint16_t motor_err_val;
+    }MotorErr;
+
+    //motor info
+    struct MOTOR_INFO{
+        MotorErr motorErr;
+        uint16_t motor_power;
+        float motor_voltage; //motor voltage in 0,1V
+        uint16_t motor_speed; //rpm
+        float motor_cur; //0.1A
+        int16_t motor_temp; //signed motor temperature
+        int16_t MOS_temp; //signed MOS temp
+        uint16_t single_op_time; //single operation time,min
+        uint16_t total_op_time; //total operation time, h
+        uint16_t hydrogeneration_time; //Hydrogeneration time
+    }_motor_info;
+    //Battery Fault Marking
+    union PACKED {
+        struct {                 //------Spirit battery------|------E battery------|          
+            uint8_t bat_bit0 :1; // battery cell fault      |      not used
+            uint8_t bat_bit1 :1; // hardware fault          |      discharge undervoltage
+            uint8_t bat_bit2 :1; // discharge overcurrent   |      discharge overcurrent
+            uint8_t bat_bit3 :1; // SOC Low                 |      discharge overtemperature
+            uint8_t bat_bit4 :1; // not used                |      discharge low temperature
+            uint8_t bat_bit5 :1; // charging overcurrent    |      charging overcurrent
+            uint8_t bat_bit6 :1; // charging overtempurature|      not used
+            uint8_t bat_bit7 :1; // 0:spirit battery 1: E battery       
+        };
+        uint8_t bat_err_val;
+    } _battery_flags;
+
+    // GPS_info
+    struct NavyGPSInfo {
+        float gps_speed;  //GPS speed in 0.01m/s
+        uint8_t satellites_num; //number of satellites
+        uint16_t running_distance;  //running distance m
+        uint8_t gps_state; //GPS_state
+    } _navyGPSinfo;
+
+    //Version Info (Adapter board, Driver)
+    struct SystemVersion
+    {
+        struct Adapter_Board_Version
+        {
+            uint8_t product_type; //3: spirit 1.0  2:navy3.0 1: navy6.0
+            uint8_t software_version; //25 ->v2.5
+            uint8_t sw_year; //20 ->2020
+            uint8_t sw_month;// 11 ->Nov
+            uint8_t hardware_version; //25 ->v2.5
+            uint8_t hw_year;//20 ->2020
+            uint8_t hw_month;//11 ->Nov
+        }_adapter_board_version;
+
+        struct Driver_Version
+        {
+            uint8_t product_type; //3: spirit 1.0  2:navy3.0 1: navy6.0
+            uint8_t software_version; //25 ->v2.5
+            uint8_t sw_year; //20 ->2020
+            uint8_t sw_month;// 11 ->Nov
+            uint8_t hardware_version; //25 ->v2.5
+            uint8_t hw_year;//20 ->2020
+            uint8_t hw_month;//11 ->Nov
+        }_driver_version;
+
+    }_system_version;
+    //Battery Status
+    struct Bat_Status
+    {
+        float bat_temp; //battery temp in 0.1C
+        float bat_vol; //battery voltage in 0.1V
+        float bat_cur; //battery current in 0.1A
+        uint8_t bat_capacity;  //capacity percentage %
+    }_bat_status;
 
     // Display system state
     struct DisplaySystemState {

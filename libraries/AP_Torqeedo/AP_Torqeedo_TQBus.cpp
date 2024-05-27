@@ -57,7 +57,7 @@ void AP_Torqeedo_TQBus::init()
     }
 }
 
-// returns true if communicating with the motor
+// returns true if communicating with the motor (To verify healthy communication)
 bool AP_Torqeedo_TQBus::healthy()
 {
     if (!_initialised) {
@@ -72,6 +72,7 @@ bool AP_Torqeedo_TQBus::healthy()
 }
 
 // initialise serial port and gpio pins (run from background thread)
+// initialise for Wake_up phase & Preparation phase for Navy3.0
 bool AP_Torqeedo_TQBus::init_internals()
 {
     // find serial driver and initialise
@@ -136,7 +137,7 @@ void AP_Torqeedo_TQBus::thread_main()
             int16_t b = _uart->read();
             if (b >= 0 ) {
                 if (parse_byte((uint8_t)b)) {
-                    // complete message received, parse it!
+                    // complete message received, parse it! //Special parse function needs to be written for Navy 3,0
                     parse_message();
                     // clear wait-for-reply because if we are waiting for a reply, this message must be it
                     set_reply_received();
@@ -312,6 +313,7 @@ void AP_Torqeedo_TQBus::report_error_codes()
 }
 
 // get latest battery status info.  returns true on success and populates arguments
+// Get value from the values got from parse function
 bool AP_Torqeedo_TQBus::get_batt_info(float &voltage, float &current_amps, float &temp_C, uint8_t &pct_remaining) const
 {
 
@@ -371,8 +373,11 @@ bool AP_Torqeedo_TQBus::parse_byte(uint8_t b)
             }
 
             // check crc
-            const uint8_t crc_expected = crc8_maxim(_received_buff, _received_buff_len-1);
-            if (_received_buff[_received_buff_len-1] != crc_expected) {
+            //const uint8_t crc_expected = crc8_maxim(_received_buff, _received_buff_len-1);
+            //for NAvy3.0 we need to check bcc
+            //Address byte needs to be skipped
+            const uint8_t bcc_expected = bcc_check(_received_buff,_received_buff_len-2);
+            if (_received_buff[_received_buff_len-1] != bcc_expected) {
                 _parse_error_count++;
                 break;
             }
@@ -407,7 +412,86 @@ bool AP_Torqeedo_TQBus::parse_byte(uint8_t b)
 
     return complete_msg_received;
 }
+//Special parse function designed for Navy3.0
+void AP_Torqeedo_TQBus::parse_message_navy()
+{
+    //Get address
+    const MsgAddressNavy msg_addr = (MsgAddressNavy)_received_buff[0];
+    //Correct Msg
+    if(msg_addr == MsgAddressNavy::THROTTLE_CONTROL_BOARD || msg_addr == MsgAddressNavy::VERSION_DATA)
+    {   
+        //Get Command Code
+        CommandCode cmd_code =(CommandCode) _received_buff[2];
+        switch (cmd_code)
+        {
+            //GPS INFO feedback (interval send)
+            case CommandCode::GPS_INFO :
+                _navyGPSinfo.gps_speed = UINT16_VALUE(_received_buff[3],_received_buff[4])*0.01;
+                _navyGPSinfo.satellites_num = _received_buff[5];
+                _navyGPSinfo.running_distance = UINT16_VALUE(_received_buff[7],_received_buff[8]);
+                _navyGPSinfo.gps_state = _received_buff[13];
+                break;
+            //Adapter board info (power on send, debug only) preparation phase
+            case CommandCode::ADAPTER_BOARD_INFO :
+                _system_version._adapter_board_version.product_type = _received_buff[3];
+                _system_version._adapter_board_version.software_version = _received_buff[4];
+                _system_version._adapter_board_version.sw_year = _received_buff[5];
+                _system_version._adapter_board_version.sw_month = _received_buff[6];
+                _system_version._adapter_board_version.hardware_version = _received_buff[7];
+                _system_version._adapter_board_version.hw_year =_received_buff[8];
+                _system_version._adapter_board_version.hw_month = _received_buff[9];
+                _battery_flags.bat_err_val = _received_buff[10];
+                break;
 
+            //Battery status
+            case CommandCode::BATTERY_STATUS :
+                _bat_status.bat_temp = UINT16_VALUE(_received_buff[3],_received_buff[4])*0.1;
+                _bat_status.bat_vol = UINT16_VALUE(_received_buff[5],_received_buff[6])*0.1;
+                _bat_status.bat_cur = UINT16_VALUE(_received_buff[7],_received_buff[8])*0.01;
+                _battery_flags.bat_err_val = _received_buff[9];
+                _bat_status.bat_capacity = _received_buff[12];
+                break;
+            //General Info, just skip
+            case CommandCode::GENERAL_INFO :
+                break;
+            
+            //Motor status Wake-up phase or working phase, run command needed
+            case CommandCode::MOTOR_INFO : 
+                _motor_info.motorErr.motor_err_val = UINT16_VALUE(_received_buff[3],_received_buff[4]);
+                _motor_info.motor_power = UINT16_VALUE(_received_buff[5],_received_buff[6]);
+                _motor_info.motor_voltage = UINT16_VALUE(_received_buff[7],_received_buff[8])*0.1;
+                _motor_info.motor_speed = UINT16_VALUE(_received_buff[9],_received_buff[10]);
+                _motor_info.motor_cur = UINT16_VALUE(_received_buff[11],_received_buff[12])*0.1;
+                _motor_info.motor_temp = UINT16_VALUE(_received_buff[13],_received_buff[14]) & 0x7FFF;
+                _motor_info.MOS_temp = UINT16_VALUE(_received_buff[15],_received_buff[16]) & 0x7FFF;
+                break;
+
+            //Driver Board info(power on send, debug only) preparation phase
+            case CommandCode::MOTOR_VERSION_INFO :
+                _system_version._driver_version.product_type = _received_buff[3];
+                _system_version._driver_version.software_version = _received_buff[4];
+                _system_version._driver_version.sw_year = _received_buff[5];
+                _system_version._driver_version.sw_month = _received_buff[6];
+                _system_version._driver_version.hardware_version = _received_buff[7];
+                _system_version._driver_version.hw_year = _received_buff[8];
+                _system_version._driver_version.hw_month = _received_buff[9];
+                break;
+            
+            case CommandCode::MOTOR_INFO_2 :
+                _motor_info.single_op_time = UINT16_VALUE(_received_buff[9],_received_buff[10]);
+                _motor_info.total_op_time = UINT16_VALUE(_received_buff[11],_received_buff[12]);
+                _motor_info.hydrogeneration_time = UINT16_VALUE(_received_buff[13],_received_buff[14]);
+                break;
+
+
+        
+        default:
+            break;
+        }
+
+    }
+
+}
 // process message held in _received_buff
 void AP_Torqeedo_TQBus::parse_message()
 {

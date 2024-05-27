@@ -194,6 +194,19 @@ uint8_t crc8_maxim(const uint8_t *data, uint16_t length)
     return crc;
 }
 
+//Bcc check function
+uint8_t bcc_check(const uint8_t *data,uint16_t length)
+{
+    uint8_t bcc=0x00;
+    //skip the address byte
+    data++;
+    while(length--)
+    {
+        bcc = bcc ^ *data;
+        data++;
+    }
+    return bcc;
+}
 // CRC8-SAE J1850 (X8+X4+X3+X2+1) left move table
 static const uint8_t crc8_table_sae[256] = {
     0x00, 0x1D, 0x3A, 0x27, 0x74, 0x69, 0x4E, 0x53, 0xE8, 0xF5, 0xD2, 0xCF, 0x9C, 0x81, 0xA6, 0xBB,

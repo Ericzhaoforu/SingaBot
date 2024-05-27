@@ -71,3 +71,5 @@ uint8_t crc_sum_of_bytes(const uint8_t *data, uint16_t count);
 
 // sums the bytes in the supplied buffer, returns that sum mod 0xFFFF
 uint16_t crc_sum_of_bytes_16(const uint8_t *data, uint16_t count);
+
+uint8_t bcc_check(const uint8_t *data,uint16_t length);
