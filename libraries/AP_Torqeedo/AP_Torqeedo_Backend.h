@@ -69,6 +69,7 @@ public:
 
     // get latest battery status info.  returns true on success and populates arguments
     virtual bool get_batt_info(float &voltage, float &current_amps, float &temp_C, uint8_t &pct_remaining) const WARN_IF_UNUSED = 0;
+    virtual bool get_batt_info_evo(float &voltage, float &current_amps, float &temp_C, uint8_t &pct_remaining) const WARN_IF_UNUSED = 0;
     virtual bool get_batt_capacity_Ah(uint16_t &amp_hours) const = 0;
 
    protected:

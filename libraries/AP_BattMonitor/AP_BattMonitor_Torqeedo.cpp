@@ -58,15 +58,17 @@ void AP_BattMonitor_Torqeedo::read(void)
 
     // read battery pack capacity
     // assumes battery monitor instance matches torqeedo instance
-    if (!have_capacity) {
-        uint16_t batt_capacity_ah;
-        if (torqeedo->get_batt_capacity_Ah(_state.instance, batt_capacity_ah)) {
-            have_capacity = true;
-            if (batt_capacity_ah * 1000 != _params._pack_capacity) {
-                _params._pack_capacity.set_and_notify(batt_capacity_ah * 1000);
-            }
-        }
-    }
+
+    //Don't use this func because evo don't provide info about capacity
+    // if (!have_capacity) {
+    //     uint16_t batt_capacity_ah;
+    //     if (torqeedo->get_batt_capacity_Ah(_state.instance, batt_capacity_ah)) {
+    //         have_capacity = true;
+    //         if (batt_capacity_ah * 1000 != _params._pack_capacity) {
+    //             _params._pack_capacity.set_and_notify(batt_capacity_ah * 1000);
+    //         }
+    //     }
+    // }
 }
 
 // capacity_remaining_pct - returns true if the battery % is available and writes to the percentage argument

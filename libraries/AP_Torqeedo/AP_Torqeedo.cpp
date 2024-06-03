@@ -173,7 +173,7 @@ bool AP_Torqeedo::get_batt_info(uint8_t instance, float &voltage, float &current
     // return battery info for specified instance
     auto *backend = get_instance(instance);
     if (backend != nullptr) {
-        return backend->get_batt_info(voltage, current_amps, temp_C, pct_remaining);
+        return backend->get_batt_info_evo(voltage, current_amps, temp_C, pct_remaining);
     }
     return false;
 }

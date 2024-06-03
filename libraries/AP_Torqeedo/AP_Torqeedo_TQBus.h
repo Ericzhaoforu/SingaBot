@@ -71,6 +71,8 @@ public:
 
     // get latest battery status info.  returns true on success and populates arguments
     bool get_batt_info(float &voltage, float &current_amps, float &temp_C, uint8_t &pct_remaining) const override;
+    bool get_batt_info_evo(float &voltage, float &current_amps, float &temp_C, uint8_t &pct_remaining) const override;
+    
     bool get_batt_capacity_Ah(uint16_t &amp_hours) const override;
 
 private:
@@ -81,6 +83,8 @@ private:
 
     // report changes in error codes to user
     void report_error_codes();
+    //report error codes for evo
+    void report_error_codes_evo();
 
     // message addresses
     enum class MsgAddress : uint8_t {
@@ -108,6 +112,8 @@ private:
         MOTOR_INFO = 0x25,
         MOTOR_VERSION_INFO = 0x26,
         MOTOR_INFO_2 =0x27,
+        THROTTLE =0x40,
+        CONFIRM =0x44
     };
     // Remote specific message ids
     enum class RemoteMsgId : uint8_t {
@@ -153,7 +159,7 @@ private:
 
     // returns true if it is safe to send a message
     bool safe_to_send() const { return ((_send_delay_us == 0) && (_reply_wait_start_ms == 0)); }
-
+    bool safe_to_send_evo() const {return (_send_delay_us == 0 );}
     // set pin to enable sending a message
     void send_start();
 
@@ -176,16 +182,16 @@ private:
     // msg_contents should not include the header, footer or CRC
     // returns true on success
     bool send_message(const uint8_t msg_contents[], uint8_t num_bytes);
-
+    bool send_message_evo(const uint8_t msg_contents[],uint8_t num_bytes);
     // add a byte to a message buffer including adding the escape character (0xAE) if necessary
     // this should only be used when adding the contents to the buffer, not the header and footer
     // num_bytes is updated to the next free byte
     bool add_byte_to_message(uint8_t byte_to_add, uint8_t msg_buff[], uint8_t msg_buff_size, uint8_t &num_bytes) const;
-
+    void send_confirm_msg(CommandCode cmd_code);
     // send a motor speed command as a value from -1000 to +1000
     // value is taken directly from SRV_Channel
     void send_motor_speed_cmd();
-
+    void send_motor_speed_cmd_evo();
     // send request to motor to reply with a particular message
     // msg_id can be INFO, STATUS or PARAM
     void send_motor_msg_request(MotorMsgId msg_id);
@@ -347,6 +353,7 @@ private:
         float bat_vol; //battery voltage in 0.1V
         float bat_cur; //battery current in 0.1A
         uint8_t bat_capacity;  //capacity percentage %
+        uint32_t last_update_ms;
     }_bat_status;
 
     // Display system state
@@ -434,7 +441,11 @@ private:
     uint8_t _display_system_state_master_error_code_prev;       // backup of display system state master_error_code
     uint32_t _last_error_report_ms;                             // system time that flag changes were last reported (used to prevent spamming user)
     MotorStatus _motor_status_prev;                             // backup of motor status
-
+    uint8_t bat_err_val_prev;
+    uint8_t motor_err_val_prev;
+    bool throttle_cmd_needed = false;
+    bool adapter_version_confirm_cmd_needed = false;
+    bool driver_version_confirm_cmd_needed = false;
     // returns a human-readable string corresponding the passed-in
     // master error code (see page 93 of https://media.torqeedo.com/downloads/manuals/torqeedo-Travel-manual-DE-EN.pdf)
     // If no conversion is available then nullptr is returned

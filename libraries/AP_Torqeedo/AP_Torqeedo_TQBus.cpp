@@ -26,8 +26,8 @@
 #include <AP_ESC_Telem/AP_ESC_Telem_Backend.h>
 
 #define TORQEEDO_SERIAL_BAUD        19200   // communication is always at 19200
-#define TORQEEDO_PACKET_HEADER      0xAC    // communication packet header
-#define TORQEEDO_PACKET_FOOTER      0xAD    // communication packet footer
+#define TORQEEDO_PACKET_HEADER      0x28    // communication packet header
+#define TORQEEDO_PACKET_FOOTER      0x29    // communication packet footer
 #define TORQEEDO_PACKET_ESCAPE      0xAE    // escape character for handling occurrences of header, footer and this escape bytes in original message
 #define TORQEEDO_PACKET_ESCAPE_MASK 0x80    // byte after ESCAPE character should be XOR'd with this value
 #define TORQEEDO_LOG_TRQD_INTERVAL_MS                   5000// log TRQD message at this interval in milliseconds
@@ -129,7 +129,7 @@ void AP_Torqeedo_TQBus::thread_main()
         check_for_send_end();
 
         // check for timeout waiting for reply
-        check_for_reply_timeout();
+        //check_for_reply_timeout();
 
         // parse incoming characters
         uint32_t nbytes = MIN(_uart->available(), 1024U);
@@ -140,39 +140,67 @@ void AP_Torqeedo_TQBus::thread_main()
                     // complete message received, parse it! //Special parse function needs to be written for Navy 3,0
                     parse_message();
                     // clear wait-for-reply because if we are waiting for a reply, this message must be it
-                    set_reply_received();
+                    //set_reply_received();
                 }
             }
         }
-
+        bool log_update =false;
+        //need to send msg
+        if (throttle_cmd_needed || driver_version_confirm_cmd_needed || adapter_version_confirm_cmd_needed)
+        {
+            if(safe_to_send_evo())
+            {
+                //send driver version confirm msg
+                // 0x28 0x04 0x02 0x44 0x26 0x60 0x29
+                if(driver_version_confirm_cmd_needed)
+                {
+                    send_confirm_msg(CommandCode::MOTOR_VERSION_INFO);
+                    driver_version_confirm_cmd_needed = false;
+                }
+                if(adapter_version_confirm_cmd_needed)
+                {
+                    send_confirm_msg(CommandCode::ADAPTER_BOARD_INFO);
+                    adapter_version_confirm_cmd_needed = false;
+                }
+                if(throttle_cmd_needed)
+                {   
+                    //using confirm func right now, should be changed to motor speed func
+                    send_motor_speed_cmd_evo();
+                    throttle_cmd_needed =false;
+                    //log motor status
+                    log_update = true;
+                    _last_send_motor_ms = AP_HAL::millis();
+                }
+            }
+        }
         // send motor speed
-        bool log_update = false;
-        if (safe_to_send()) {
-            uint32_t now_ms = AP_HAL::millis();
+        // bool log_update = false;
+        // if (safe_to_send()) {
+        //     uint32_t now_ms = AP_HAL::millis();
 
-            // if connected to motor
-            if (get_type() == AP_Torqeedo::ConnectionType::TYPE_MOTOR) {
-                if (now_ms - _last_send_motor_ms > TORQEEDO_SEND_MOTOR_SPEED_INTERVAL_MS) {
-                    // send motor speed every 0.1sec
-                    _send_motor_speed = true;
-                } else if (now_ms - _last_send_motor_status_request_ms > TORQEEDO_SEND_MOTOR_STATUS_REQUEST_INTERVAL_MS) {
-                    // send request for motor status
-                    send_motor_msg_request(MotorMsgId::STATUS);
-                    _last_send_motor_status_request_ms = now_ms;
-                } else if (now_ms - _last_send_motor_param_request_ms > TORQEEDO_SEND_MOTOR_PARAM_REQUEST_INTERVAL_MS) {
-                    // send request for motor params
-                    send_motor_msg_request(MotorMsgId::PARAM);
-                    _last_send_motor_param_request_ms = now_ms;
-                }
-            }
+        //     // if connected to motor
+        //     if (get_type() == AP_Torqeedo::ConnectionType::TYPE_MOTOR) {
+        //         if (now_ms - _last_send_motor_ms > TORQEEDO_SEND_MOTOR_SPEED_INTERVAL_MS) {
+        //             // send motor speed every 0.1sec
+        //             _send_motor_speed = true;
+        //         } else if (now_ms - _last_send_motor_status_request_ms > TORQEEDO_SEND_MOTOR_STATUS_REQUEST_INTERVAL_MS) {
+        //             // send request for motor status
+        //             send_motor_msg_request(MotorMsgId::STATUS);
+        //             _last_send_motor_status_request_ms = now_ms;
+        //         } else if (now_ms - _last_send_motor_param_request_ms > TORQEEDO_SEND_MOTOR_PARAM_REQUEST_INTERVAL_MS) {
+        //             // send request for motor params
+        //             send_motor_msg_request(MotorMsgId::PARAM);
+        //             _last_send_motor_param_request_ms = now_ms;
+        //         }
+        //     }
 
-            // send motor speed
-            if (_send_motor_speed) {
-                send_motor_speed_cmd();
-                _send_motor_speed = false;
-                log_update = true;
-            }
-        }
+        //     // send motor speed
+        //     if (_send_motor_speed) {
+        //         send_motor_speed_cmd();
+        //         _send_motor_speed = false;
+        //         log_update = true;
+        //     }
+        // }
 
         // log high level status and motor speed
         log_TRQD(log_update);
@@ -222,7 +250,148 @@ const char * AP_Torqeedo_TQBus::map_master_error_code_to_string(uint8_t code) co
 
     return nullptr;
 }
+void AP_Torqeedo_TQBus::report_error_codes_evo()
+{
+    // skip reporting if we have already reported status very recently
+    const uint32_t now_ms = AP_HAL::millis();
 
+    // skip reporting if no changes in flags and already reported within 10 seconds
+    const bool flags_changed = (motor_err_val_prev != _motor_info.motorErr.motor_err_val) ||
+                                (bat_err_val_prev != _battery_flags.bat_err_val);
+    if (!flags_changed && ((now_ms - _last_error_report_ms) < TORQEEDO_ERROR_REPORT_INTERVAL_MAX_MS)) {
+        return;
+    }
+
+    //report errors (battery, motors)
+
+    //report motor errors
+    const char* msg_prefix ="Evo-M-Err:";
+    (void)msg_prefix;  // sometimes unused when HAL_GCS_ENABLED is false
+
+    if(_motor_info.motorErr.blocked)
+    {
+        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "%s motor blocked", msg_prefix);
+    }
+    if(_motor_info.motorErr.overtemp)
+    {
+        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "%s motor overtemp", msg_prefix);
+    }
+    if(_motor_info.motorErr.MOS_overtemp)
+    {
+        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "%s MOS overtemp", msg_prefix);
+    }
+    if(_motor_info.motorErr.overcur)
+    {
+        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "%s over current", msg_prefix);
+    }
+    if(_motor_info.motorErr._8301_fault)
+    {
+        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "%s 8301 fault", msg_prefix);
+    }
+    if(_motor_info.motorErr.communication_fault)
+    {
+        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "%s communication fault", msg_prefix);
+    }
+    if(_motor_info.motorErr.temp_err)
+    {
+        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "%s temp err", msg_prefix);
+    }
+    if(_motor_info.motorErr.MOS_temp_alarm)
+    {
+        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "%s MOS temp alarm", msg_prefix);
+    }
+    if(_motor_info.motorErr.overvoltage)
+    {
+        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "%s overvoltage", msg_prefix);
+    }
+    if(_motor_info.motorErr.undervoltage)
+    {
+        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "%s undervoltage", msg_prefix);
+    }
+    if(_motor_info.motorErr.circuit_failure)
+    {
+        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "%s circuit failure", msg_prefix);
+    }
+    if(_motor_info.motorErr.fan_fault)
+    {
+        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "%s fan fault", msg_prefix);
+    }
+    if(_motor_info.motorErr.charging)
+    {
+        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "%s charging", msg_prefix);
+    }
+
+    //report battery errors
+    const char* msg_prefix_b ="Evo-B-Err:";
+    //E battery
+    if(_battery_flags.bat_bit7)
+    {
+        if(_battery_flags.bat_bit0)
+        {
+            GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "%s cell fault", msg_prefix_b);
+        }
+        if(_battery_flags.bat_bit1)
+        {
+            GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "%s discharge undervoltage", msg_prefix_b);
+        }
+        if(_battery_flags.bat_bit2)
+        {
+            GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "%s discharge overcur", msg_prefix_b);
+        }
+        if(_battery_flags.bat_bit3)
+        {
+            GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "%s discharge overtemp", msg_prefix_b);
+        }
+        if(_battery_flags.bat_bit4)
+        {
+            GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "%s discharge lowtemp", msg_prefix_b);
+        }
+        if(_battery_flags.bat_bit5)
+        {
+            GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "%s charge overvoltage", msg_prefix_b);
+        }
+    }
+    //Spirit battery
+    else{
+        if(_battery_flags.bat_bit0)
+        {
+            GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "%s cell fault", msg_prefix_b);
+        }
+        if(_battery_flags.bat_bit1)
+        {
+            GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "%s hardware fault", msg_prefix_b);
+        }
+        if(_battery_flags.bat_bit2)
+        {
+            GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "%s discharge overcur", msg_prefix_b);
+        }
+        if(_battery_flags.bat_bit3)
+        {
+            GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "%s SOC low", msg_prefix_b);
+        }
+        if(_battery_flags.bat_bit5)
+        {
+            GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "%s charge overcur", msg_prefix_b);
+        }
+        if(_battery_flags.bat_bit6)
+        {
+            GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "%s charge overtemp", msg_prefix_b);
+        }
+
+    }
+
+    // display OK if all errors cleared
+    const bool prev_errored = (motor_err_val_prev != 0) || (bat_err_val_prev != 0);
+    const bool now_errored = (_battery_flags.bat_err_val!= 0) || (_motor_info.motorErr.motor_err_val!=0);
+    if (!now_errored && prev_errored) {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "%s OK", msg_prefix);
+    }
+
+    // record change in state and reporting time
+    bat_err_val_prev = _battery_flags.bat_err_val;
+    motor_err_val_prev = _motor_info.motorErr.motor_err_val;
+    _last_error_report_ms = now_ms;
+}
 // report changes in error codes to user
 void AP_Torqeedo_TQBus::report_error_codes()
 {
@@ -337,6 +506,19 @@ bool AP_Torqeedo_TQBus::get_batt_info(float &voltage, float &current_amps, float
 
     return false;
 }
+bool AP_Torqeedo_TQBus::get_batt_info_evo(float &voltage, float &current_amps, float &temp_C, uint8_t &pct_remaining) const
+{
+    //No time out
+    if((AP_HAL::millis()-_bat_status.last_update_ms <= TORQEEDO_BATT_TIMEOUT_MS))
+    {
+        voltage = _bat_status.bat_vol;
+        current_amps = _bat_status.bat_cur;
+        temp_C = _bat_status.bat_temp;
+        pct_remaining = _bat_status.bat_capacity;
+        return true;
+    }
+    return false;
+}
 
 // get battery capacity.  returns true on success and populates argument
 bool AP_Torqeedo_TQBus::get_batt_capacity_Ah(uint16_t &amp_hours) const
@@ -430,6 +612,7 @@ void AP_Torqeedo_TQBus::parse_message_navy()
                 _navyGPSinfo.satellites_num = _received_buff[5];
                 _navyGPSinfo.running_distance = UINT16_VALUE(_received_buff[7],_received_buff[8]);
                 _navyGPSinfo.gps_state = _received_buff[13];
+                throttle_cmd_needed = true;
                 break;
             //Adapter board info (power on send, debug only) preparation phase
             case CommandCode::ADAPTER_BOARD_INFO :
@@ -440,7 +623,10 @@ void AP_Torqeedo_TQBus::parse_message_navy()
                 _system_version._adapter_board_version.hardware_version = _received_buff[7];
                 _system_version._adapter_board_version.hw_year =_received_buff[8];
                 _system_version._adapter_board_version.hw_month = _received_buff[9];
+                //error code update
                 _battery_flags.bat_err_val = _received_buff[10];
+                report_error_codes_evo();
+                adapter_version_confirm_cmd_needed = true;
                 break;
 
             //Battery status
@@ -448,15 +634,21 @@ void AP_Torqeedo_TQBus::parse_message_navy()
                 _bat_status.bat_temp = UINT16_VALUE(_received_buff[3],_received_buff[4])*0.1;
                 _bat_status.bat_vol = UINT16_VALUE(_received_buff[5],_received_buff[6])*0.1;
                 _bat_status.bat_cur = UINT16_VALUE(_received_buff[7],_received_buff[8])*0.01;
+                _bat_status.last_update_ms = AP_HAL::millis();
+                //err code update
                 _battery_flags.bat_err_val = _received_buff[9];
                 _bat_status.bat_capacity = _received_buff[12];
+                report_error_codes_evo();
+                throttle_cmd_needed = true;
                 break;
             //General Info, just skip
             case CommandCode::GENERAL_INFO :
+                throttle_cmd_needed = true;
                 break;
             
             //Motor status Wake-up phase or working phase, run command needed
             case CommandCode::MOTOR_INFO : 
+                //err code update
                 _motor_info.motorErr.motor_err_val = UINT16_VALUE(_received_buff[3],_received_buff[4]);
                 _motor_info.motor_power = UINT16_VALUE(_received_buff[5],_received_buff[6]);
                 _motor_info.motor_voltage = UINT16_VALUE(_received_buff[7],_received_buff[8])*0.1;
@@ -464,6 +656,8 @@ void AP_Torqeedo_TQBus::parse_message_navy()
                 _motor_info.motor_cur = UINT16_VALUE(_received_buff[11],_received_buff[12])*0.1;
                 _motor_info.motor_temp = UINT16_VALUE(_received_buff[13],_received_buff[14]) & 0x7FFF;
                 _motor_info.MOS_temp = UINT16_VALUE(_received_buff[15],_received_buff[16]) & 0x7FFF;
+                report_error_codes_evo();
+                throttle_cmd_needed = true;
                 break;
 
             //Driver Board info(power on send, debug only) preparation phase
@@ -475,12 +669,14 @@ void AP_Torqeedo_TQBus::parse_message_navy()
                 _system_version._driver_version.hardware_version = _received_buff[7];
                 _system_version._driver_version.hw_year = _received_buff[8];
                 _system_version._driver_version.hw_month = _received_buff[9];
+                driver_version_confirm_cmd_needed = true;
                 break;
             
             case CommandCode::MOTOR_INFO_2 :
                 _motor_info.single_op_time = UINT16_VALUE(_received_buff[9],_received_buff[10]);
                 _motor_info.total_op_time = UINT16_VALUE(_received_buff[11],_received_buff[12]);
                 _motor_info.hydrogeneration_time = UINT16_VALUE(_received_buff[13],_received_buff[14]);
+                throttle_cmd_needed = true;
                 break;
 
 
@@ -497,7 +693,6 @@ void AP_Torqeedo_TQBus::parse_message()
 {
     // message address (i.e. target of message)
     const MsgAddress msg_addr = (MsgAddress)_received_buff[0];
-
     // handle messages sent to "remote" (aka tiller)
     if ((get_type() == AP_Torqeedo::ConnectionType::TYPE_TILLER) && (msg_addr == MsgAddress::REMOTE1)) {
         RemoteMsgId msg_id = (RemoteMsgId)_received_buff[1];
@@ -858,6 +1053,54 @@ void AP_Torqeedo_TQBus::set_reply_received()
     _reply_wait_start_ms = 0;
 }
 
+
+// msg send function for evo
+bool AP_Torqeedo_TQBus::send_message_evo(const uint8_t msg_contents[],uint8_t num_bytes)
+{
+    // buffer for outgoing message
+    uint8_t send_buff[TORQEEDO_MESSAGE_LEN_MAX];
+    uint8_t send_buff_num_bytes = 0;
+
+    //calculate bcc (ignore address byte)
+    const uint8_t bcc = bcc_check(msg_contents, num_bytes-1);
+
+    // add header
+    send_buff[send_buff_num_bytes++] = TORQEEDO_PACKET_HEADER;
+
+    // add contents
+    for (uint8_t i=0; i<num_bytes; i++) {
+        if (!add_byte_to_message(msg_contents[i], send_buff, ARRAY_SIZE(send_buff), send_buff_num_bytes)) {
+            _parse_error_count++;
+            return false;
+        }
+    }
+
+    // add bcc
+    if (!add_byte_to_message(bcc, send_buff, ARRAY_SIZE(send_buff), send_buff_num_bytes)) {
+        _parse_error_count++;
+        return false;
+    }
+
+    // add footer
+    if (send_buff_num_bytes >= ARRAY_SIZE(send_buff)) {
+        _parse_error_count++;
+        return false;
+    }
+    send_buff[send_buff_num_bytes++] = TORQEEDO_PACKET_FOOTER;
+
+    // set send pin
+    send_start();
+
+    // write message
+    _uart->write(send_buff, send_buff_num_bytes);
+
+    // record start and expected delay to send message
+    _send_start_us = AP_HAL::micros();
+    _send_delay_us = calc_send_delay_us(send_buff_num_bytes);
+
+    return true;
+
+}
 // send a message to the motor with the specified message contents
 // msg_contents should not include the header, footer or CRC
 // returns true on success
@@ -931,6 +1174,46 @@ bool AP_Torqeedo_TQBus::add_byte_to_message(uint8_t byte_to_add, uint8_t msg_buf
     return true;
 }
 
+
+
+void AP_Torqeedo_TQBus::send_motor_speed_cmd_evo()
+{
+    // calculate desired motor speed
+    // 0 desired motor speed if disarmed
+    if (!hal.util->get_soft_armed()) {
+        _motor_speed_desired = 0;
+    } else {
+        // convert throttle output to motor output in range -1000 to +1000
+        // ToDo: convert PWM output to motor output so that SERVOx_MIN, MAX and TRIM take effect
+        _motor_speed_desired = constrain_int16(SRV_Channels::get_output_norm((SRV_Channel::Aux_servo_function_t)_params.servo_fn.get()) * 1000.0, -1000, 1000);
+    }
+
+    // updated limited motor speed, -1000~ +1000
+    int16_t mot_speed_limited = calc_motor_speed_limited(_motor_speed_desired);
+
+    //prepare throttle cmd , 0 speed by default
+    //Header:0x28 Address:0x04 Data Length: 0x03 Command:0x40 Data0(Direction 1:forward):0x01 Data1(velo)0-127 bcc endcode0x29
+    uint8_t mot_speed_cmd_buff[] = {(uint8_t)MsgAddressNavy::THROTTLE_CONTROL_BOARD,0x03,(uint8_t)CommandCode::THROTTLE,0x01,0x00};
+
+    uint8_t speed_byte = uint8_t(abs(constrain_uint16(mot_speed_limited/1000*127,-127,127)));
+    uint8_t dir_byte;
+    if (mot_speed_limited > 0)
+    {
+        dir_byte = 1;
+    } 
+    else
+    {
+        dir_byte = 0;
+    }
+    mot_speed_cmd_buff[3] = dir_byte;
+    mot_speed_cmd_buff[4] = speed_byte;
+    //send out throttle cmd msg
+    if(send_message_evo(mot_speed_cmd_buff,ARRAY_SIZE(mot_speed_cmd_buff)))
+    {
+        WITH_SEMAPHORE(_last_healthy_sem);
+        _last_send_motor_ms = AP_HAL::millis();
+    }
+}
 // Example "Remote (0x01)" reply message to allow tiller to control motor speed
 // Byte     Field Definition    Example Value   Comments
 // ---------------------------------------------------------------------------------
@@ -1003,6 +1286,14 @@ void AP_Torqeedo_TQBus::send_motor_msg_request(MotorMsgId msg_id)
         // record waiting for reply
         set_expected_reply_msgid((uint8_t)msg_id);
     }
+}
+
+void AP_Torqeedo_TQBus::send_confirm_msg(CommandCode cmd_code)
+{
+    // prepare message
+    uint8_t confirm_msg_buff[] = {(uint8_t)MsgAddressNavy::THROTTLE_CONTROL_BOARD, 0x02,(uint8_t)CommandCode::CONFIRM,(uint8_t)cmd_code};
+    //send msg with bcc check
+    send_message_evo(confirm_msg_buff, ARRAY_SIZE(confirm_msg_buff));
 }
 
 // calculate the limited motor speed that is sent to the motors
