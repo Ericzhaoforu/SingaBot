@@ -25,9 +25,9 @@
 #include <AP_SerialManager/AP_SerialManager.h>
 #include <AP_ESC_Telem/AP_ESC_Telem_Backend.h>
 
-#define TORQEEDO_SERIAL_BAUD        19200   // communication is always at 19200
-#define TORQEEDO_PACKET_HEADER      0x28    // communication packet header
-#define TORQEEDO_PACKET_FOOTER      0x29    // communication packet footer
+#define TORQEEDO_SERIAL_BAUD        38400   // communication is always at 19200
+#define TORQEEDO_PACKET_HEADER      0x28    // communication packet header for Navy3.0
+#define TORQEEDO_PACKET_FOOTER      0x29    // communication packet footer for Navy3.0
 #define TORQEEDO_PACKET_ESCAPE      0xAE    // escape character for handling occurrences of header, footer and this escape bytes in original message
 #define TORQEEDO_PACKET_ESCAPE_MASK 0x80    // byte after ESCAPE character should be XOR'd with this value
 #define TORQEEDO_LOG_TRQD_INTERVAL_MS                   5000// log TRQD message at this interval in milliseconds
@@ -52,6 +52,7 @@ void AP_Torqeedo_TQBus::init()
     // create background thread to process serial input and output
     char thread_name[15];
     hal.util->snprintf(thread_name, sizeof(thread_name), "torqeedo%u", (unsigned)_instance);
+    hal.console->printf("Torqeedo TQBus init & thread inited\n");
     if (!hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_Torqeedo_TQBus::thread_main, void), thread_name, 2048, AP_HAL::Scheduler::PRIORITY_RCOUT, 1)) {
         return;
     }
@@ -138,7 +139,7 @@ void AP_Torqeedo_TQBus::thread_main()
             if (b >= 0 ) {
                 if (parse_byte((uint8_t)b)) {
                     // complete message received, parse it! //Special parse function needs to be written for Navy 3,0
-                    parse_message();
+                    parse_message_navy();
                     // clear wait-for-reply because if we are waiting for a reply, this message must be it
                     //set_reply_received();
                 }
@@ -531,6 +532,7 @@ bool AP_Torqeedo_TQBus::get_batt_capacity_Ah(uint16_t &amp_hours) const
 }
 
 // process a single byte received on serial port
+//This function is used to parse the message received from the motor, for the Navy 3.0
 // return true if a complete message has been received (the message will be held in _received_buff)
 bool AP_Torqeedo_TQBus::parse_byte(uint8_t b)
 {
@@ -597,6 +599,8 @@ bool AP_Torqeedo_TQBus::parse_byte(uint8_t b)
 //Special parse function designed for Navy3.0
 void AP_Torqeedo_TQBus::parse_message_navy()
 {
+    //print to console fo rdebug
+    //hal.console->printf("Received message: %s \n",_received_buff);
     //Get address
     const MsgAddressNavy msg_addr = (MsgAddressNavy)_received_buff[0];
     //Correct Msg
@@ -1186,17 +1190,26 @@ void AP_Torqeedo_TQBus::send_motor_speed_cmd_evo()
         // convert throttle output to motor output in range -1000 to +1000
         // ToDo: convert PWM output to motor output so that SERVOx_MIN, MAX and TRIM take effect
         _motor_speed_desired = constrain_int16(SRV_Channels::get_output_norm((SRV_Channel::Aux_servo_function_t)_params.servo_fn.get()) * 1000.0, -1000, 1000);
+
     }
 
     // updated limited motor speed, -1000~ +1000
     int16_t mot_speed_limited = calc_motor_speed_limited(_motor_speed_desired);
-
+    GCS_SEND_TEXT(MAV_SEVERITY_NOTICE, "desired velocity: %d", _motor_speed_desired);
+    //GCS_SEND_TEXT(MAV_SEVERITY_NOTICE, "mod vel: %d", uint8_t(double(abs(mot_speed_limited))/1000*127));
     //prepare throttle cmd , 0 speed by default
     //Header:0x28 Address:0x04 Data Length: 0x03 Command:0x40 Data0(Direction 1:forward):0x01 Data1(velo)0-127 bcc endcode0x29
     uint8_t mot_speed_cmd_buff[] = {(uint8_t)MsgAddressNavy::THROTTLE_CONTROL_BOARD,0x03,(uint8_t)CommandCode::THROTTLE,0x01,0x00};
-
-    uint8_t speed_byte = uint8_t(abs(constrain_uint16(mot_speed_limited/1000*127,-127,127)));
+    //motor speed in in range -1000 to +1000, we want to mapping it to 0-127
+    uint8_t speed_byte= uint8_t(double(abs(mot_speed_limited))/1000*127); 
+    //constrain:
+    if (speed_byte>127)
+    {
+        speed_byte = 127;
+    }
+    GCS_SEND_TEXT(MAV_SEVERITY_NOTICE, "velocity byte: %d", speed_byte);
     uint8_t dir_byte;
+
     if (mot_speed_limited > 0)
     {
         dir_byte = 1;
