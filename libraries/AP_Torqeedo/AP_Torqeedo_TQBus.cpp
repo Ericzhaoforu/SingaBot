@@ -52,6 +52,7 @@ void AP_Torqeedo_TQBus::init()
     // create background thread to process serial input and output
     char thread_name[15];
     hal.util->snprintf(thread_name, sizeof(thread_name), "torqeedo%u", (unsigned)_instance);
+    GCS_SEND_TEXT(MAV_SEVERITY_NOTICE, "torqeedo%u estabilshed", (unsigned)_instance);
     hal.console->printf("Torqeedo TQBus init & thread inited\n");
     if (!hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_Torqeedo_TQBus::thread_main, void), thread_name, 2048, AP_HAL::Scheduler::PRIORITY_RCOUT, 1)) {
         return;
@@ -128,7 +129,6 @@ void AP_Torqeedo_TQBus::thread_main()
 
         // check if transmit pin should be unset
         check_for_send_end();
-
         // check for timeout waiting for reply
         //check_for_reply_timeout();
 
@@ -1015,6 +1015,7 @@ void AP_Torqeedo_TQBus::check_for_send_end()
     // unset gpio or serial port's CTS pin
     if (_params.pin_de > -1) {
         hal.gpio->write(_params.pin_de, 0);
+        //GCS_SEND_TEXT(MAV_SEVERITY_NOTICE, "torqeedo2 here");
     } else {
         _uart->set_CTS_pin(false);
     }
