@@ -71,6 +71,7 @@ const AP_Scheduler::Task Rover::scheduler_tasks[] = {
     SCHED_TASK(read_radio,             50,    200,   3),
     SCHED_TASK(ahrs_update,           400,    400,   6),
     SCHED_TASK(read_rangefinders,      50,    200,   9),
+    SCHED_TASK(emergency_and_led_loop,  10,    200,  10),
 #if AP_OPTICALFLOW_ENABLED
     SCHED_TASK_CLASS(AP_OpticalFlow,      &rover.optflow,          update,         200, 160,  11),
 #endif
@@ -441,7 +442,6 @@ void Rover::update_logging2(void)
  */
 void Rover::one_second_loop(void)
 {
-    set_control_channels();
 
     // cope with changes to aux functions
     SRV_Channels::enable_aux_servos();
@@ -514,7 +514,75 @@ bool Rover::get_wp_crosstrack_error_m(float &xtrack_error) const
     return true;
 }
 
+void Rover::emergency_and_led_loop()
+{
+     // emergency stop procedures 
+    //Not initialize emergency stop yet
+    if (emergency_stop_and_led_initiated == false)
+    {
+        //AUX2 as control pin
+        hal.gpio->pinMode(EMERGENCY_STOP_PORT, HAL_GPIO_OUTPUT);
+        //High in default
+        hal.gpio->write(EMERGENCY_STOP_PORT, GPIO_OUTPUT_HIGH);
 
+        //AUX3: red LED  AUX4: yellow LED AUX5: Green LED
+        hal.gpio->pinMode(RED_LED_PORT, HAL_GPIO_OUTPUT);
+        hal.gpio->pinMode(YELLOW_LED_PORT, HAL_GPIO_OUTPUT);
+        hal.gpio->pinMode(GREEN_LED_PORT, HAL_GPIO_OUTPUT);
+        emergency_stop_and_led_initiated = true;
+    }
+    //channel 8 as emergency stop
+    uint16_t emergency_stop_ch_val=hal.rcin->read(7);
+    //if channel 8 is high, emergency stop
+    if (emergency_stop_ch_val>=1800)
+    {
+        //Put the emergency stop pin to low
+        if (hal.gpio->read(EMERGENCY_STOP_PORT)==GPIO_OUTPUT_HIGH)
+        {
+            // hal.gpio->write(EMERGENCY_STOP_PORT, GPIO_OUTPUT_LOW);
+            hal.gpio->write(EMERGENCY_STOP_PORT, GPIO_OUTPUT_LOW);
+            GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "Emergency stop triggered");
+            // hal.gpio->write(RED_LED_PORT, GPIO_OUTPUT_LOW);
+            // hal.gpio->write(YELLOW_LED_PORT, GPIO_OUTPUT_HIGH);
+            // hal.gpio->write(GREEN_LED_PORT, GPIO_OUTPUT_HIGH);
+        }
+    }
+        
+    else
+    {
+        if (hal.gpio->read(EMERGENCY_STOP_PORT)==GPIO_OUTPUT_LOW)
+        {
+            hal.gpio->write(EMERGENCY_STOP_PORT, GPIO_OUTPUT_HIGH);
+            GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "Emergency stop released");
+            // hal.gpio->write(RED_LED_PORT, GPIO_OUTPUT_HIGH);
+            // hal.gpio->write(YELLOW_LED_PORT, GPIO_OUTPUT_LOW);
+            // hal.gpio->write(GREEN_LED_PORT, GPIO_OUTPUT_HIGH);
+        }
+    }
+    //LED control
+    // if (hal.gpio->read(EMERGENCY_STOP_PORT)==GPIO_OUTPUT_LOW)
+    // {
+    //     //Red LED on
+    //     // hal.gpio->write(RED_LED_PORT, GPIO_OUTPUT_HIGH);
+    //     // hal.gpio->write(YELLOW_LED_PORT, GPIO_OUTPUT_HIGH);
+    //     // hal.gpio->write(GREEN_LED_PORT, GPIO_OUTPUT_HIGH);
+    //     hal.gpio->write(RED_LED_PORT, GPIO_OUTPUT_LOW);
+    //     hal.gpio->write(YELLOW_LED_PORT, GPIO_OUTPUT_HIGH);
+    //     hal.gpio->write(GREEN_LED_PORT, GPIO_OUTPUT_HIGH);
+    // }
+    // else
+    // {
+    //     //All LED on
+    //     hal.gpio->write(RED_LED_PORT, GPIO_OUTPUT_HIGH);
+    //     hal.gpio->write(YELLOW_LED_PORT, GPIO_OUTPUT_HIGH);
+    //     hal.gpio->write(GREEN_LED_PORT, GPIO_OUTPUT_LOW);
+    //     //All LED off
+    //     // hal.gpio->write(RED_LED_PORT, GPIO_OUTPUT_LOW);
+    //     // hal.gpio->write(YELLOW_LED_PORT, GPIO_OUTPUT_LOW);
+    //     // hal.gpio->write(GREEN_LED_PORT, GPIO_OUTPUT_LOW);
+    // }
+    
+}
 Rover rover;
 AP_Vehicle& vehicle = rover;
 

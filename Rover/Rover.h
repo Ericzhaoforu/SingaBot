@@ -73,6 +73,12 @@
 #include "RC_Channel.h"                  // RC Channel Library
 
 #include "mode.h"
+#define EMERGENCY_STOP_PORT 51
+#define RED_LED_PORT 52
+#define YELLOW_LED_PORT 53
+#define GREEN_LED_PORT 54
+#define GPIO_OUTPUT_HIGH 1
+#define GPIO_OUTPUT_LOW 0
 
 class Rover : public AP_Vehicle {
 public:
@@ -435,6 +441,8 @@ private:
 
 public:
     void failsafe_check();
+    //User loop, used to control enmergecy stop & LED
+    void emergency_and_led_loop();
     // Motor test
     void motor_test_output();
     bool mavlink_motor_test_check(const GCS_MAVLINK &gcs_chan, bool check_rc, AP_MotorsUGV::motor_test_order motor_instance, uint8_t throttle_type, int16_t throttle_value);
@@ -447,6 +455,7 @@ public:
 
     // Simple mode
     float simple_sin_yaw;
+    bool emergency_stop_and_led_initiated = false;
 };
 
 extern Rover rover;
