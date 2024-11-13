@@ -1196,19 +1196,20 @@ void AP_Torqeedo_TQBus::send_motor_speed_cmd_evo()
 
     // updated limited motor speed, -1000~ +1000
     int16_t mot_speed_limited = calc_motor_speed_limited(_motor_speed_desired);
-    GCS_SEND_TEXT(MAV_SEVERITY_NOTICE, "desired velocity: %d", _motor_speed_desired);
+    //GCS_SEND_TEXT(MAV_SEVERITY_NOTICE, "desired velocity: %d", _motor_speed_desired);
     //GCS_SEND_TEXT(MAV_SEVERITY_NOTICE, "mod vel: %d", uint8_t(double(abs(mot_speed_limited))/1000*127));
     //prepare throttle cmd , 0 speed by default
     //Header:0x28 Address:0x04 Data Length: 0x03 Command:0x40 Data0(Direction 1:forward):0x01 Data1(velo)0-127 bcc endcode0x29
     uint8_t mot_speed_cmd_buff[] = {(uint8_t)MsgAddressNavy::THROTTLE_CONTROL_BOARD,0x03,(uint8_t)CommandCode::THROTTLE,0x01,0x00};
     //motor speed in in range -1000 to +1000, we want to mapping it to 0-127
-    uint8_t speed_byte= uint8_t(double(abs(mot_speed_limited))/1000*127); 
+    uint8_t speed_byte= uint8_t(double(abs(mot_speed_limited))/1000*127*0.6); 
     //constrain:
-    if (speed_byte>127)
+    // contrain need to mutiply 0.7 to make sure the max speed is 70% of the max speed 127*0.7=88
+    if (speed_byte>76)
     {
-        speed_byte = 127;
+        speed_byte = 76;
     }
-    GCS_SEND_TEXT(MAV_SEVERITY_NOTICE, "velocity byte: %d", speed_byte);
+    //GCS_SEND_TEXT(MAV_SEVERITY_NOTICE, "velocity byte: %d", speed_byte);
     uint8_t dir_byte;
 
     if (mot_speed_limited > 0)

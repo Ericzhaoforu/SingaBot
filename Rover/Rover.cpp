@@ -522,6 +522,8 @@ void Rover::emergency_and_led_loop()
     {
         //AUX2 as control pin
         hal.gpio->pinMode(EMERGENCY_STOP_PORT, HAL_GPIO_OUTPUT);
+        hal.gpio->pinMode(55, HAL_GPIO_OUTPUT);
+        hal.gpio->write(55,GPIO_OUTPUT_HIGH);
         //High in default
         hal.gpio->write(EMERGENCY_STOP_PORT, GPIO_OUTPUT_HIGH);
 
@@ -533,55 +535,68 @@ void Rover::emergency_and_led_loop()
     }
     //channel 8 as emergency stop
     uint16_t emergency_stop_ch_val=hal.rcin->read(7);
-    //if channel 8 is high, emergency stop
-    if (emergency_stop_ch_val>=1800)
-    {
-        //Put the emergency stop pin to low
-        if (hal.gpio->read(EMERGENCY_STOP_PORT)==GPIO_OUTPUT_HIGH)
+    if(emergency_stop_ch_val>1800)
         {
-            // hal.gpio->write(EMERGENCY_STOP_PORT, GPIO_OUTPUT_LOW);
-            hal.gpio->write(EMERGENCY_STOP_PORT, GPIO_OUTPUT_LOW);
-            GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "Emergency stop triggered");
-            // hal.gpio->write(RED_LED_PORT, GPIO_OUTPUT_LOW);
-            // hal.gpio->write(YELLOW_LED_PORT, GPIO_OUTPUT_HIGH);
-            // hal.gpio->write(GREEN_LED_PORT, GPIO_OUTPUT_HIGH);
+            if (hal.gpio->read(EMERGENCY_STOP_PORT)==GPIO_OUTPUT_HIGH)
+            {
+                hal.gpio->write(EMERGENCY_STOP_PORT, GPIO_OUTPUT_LOW);
+                hal.gpio->write(RED_LED_PORT, GPIO_OUTPUT_LOW);
+                hal.gpio->write(YELLOW_LED_PORT, GPIO_OUTPUT_HIGH);
+                hal.gpio->write(GREEN_LED_PORT, GPIO_OUTPUT_HIGH);
+                //turn on the red led and turn off the rest, if any 
+                GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "Emergency stop triggered");
+            }
         }
-    }
-        
     else
     {
         if (hal.gpio->read(EMERGENCY_STOP_PORT)==GPIO_OUTPUT_LOW)
-        {
-            hal.gpio->write(EMERGENCY_STOP_PORT, GPIO_OUTPUT_HIGH);
-            GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "Emergency stop released");
-            // hal.gpio->write(RED_LED_PORT, GPIO_OUTPUT_HIGH);
-            // hal.gpio->write(YELLOW_LED_PORT, GPIO_OUTPUT_LOW);
-            // hal.gpio->write(GREEN_LED_PORT, GPIO_OUTPUT_HIGH);
-        }
+         {
+             hal.gpio->write(EMERGENCY_STOP_PORT, GPIO_OUTPUT_HIGH);
+             GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "Emergency stop released");
+             //turn off the red led
+             hal.gpio->write(RED_LED_PORT, GPIO_OUTPUT_HIGH);
+         }
     }
-    //LED control
-    // if (hal.gpio->read(EMERGENCY_STOP_PORT)==GPIO_OUTPUT_LOW)
-    // {
-    //     //Red LED on
-    //     // hal.gpio->write(RED_LED_PORT, GPIO_OUTPUT_HIGH);
-    //     // hal.gpio->write(YELLOW_LED_PORT, GPIO_OUTPUT_HIGH);
-    //     // hal.gpio->write(GREEN_LED_PORT, GPIO_OUTPUT_HIGH);
-    //     hal.gpio->write(RED_LED_PORT, GPIO_OUTPUT_LOW);
-    //     hal.gpio->write(YELLOW_LED_PORT, GPIO_OUTPUT_HIGH);
-    //     hal.gpio->write(GREEN_LED_PORT, GPIO_OUTPUT_HIGH);
-    // }
-    // else
-    // {
-    //     //All LED on
-    //     hal.gpio->write(RED_LED_PORT, GPIO_OUTPUT_HIGH);
-    //     hal.gpio->write(YELLOW_LED_PORT, GPIO_OUTPUT_HIGH);
-    //     hal.gpio->write(GREEN_LED_PORT, GPIO_OUTPUT_LOW);
-    //     //All LED off
-    //     // hal.gpio->write(RED_LED_PORT, GPIO_OUTPUT_LOW);
-    //     // hal.gpio->write(YELLOW_LED_PORT, GPIO_OUTPUT_LOW);
-    //     // hal.gpio->write(GREEN_LED_PORT, GPIO_OUTPUT_LOW);
-    // }
-    
+    //If the motor is not healthy, emergency stop
+    if(g2.torqeedo.healthy()==false || AP_Notify::flags.failsafe_radio == true)
+    {
+        //hardware emergency stop
+        
+            //force the light
+            hal.gpio->write(RED_LED_PORT, GPIO_OUTPUT_LOW);
+            hal.gpio->write(YELLOW_LED_PORT, GPIO_OUTPUT_HIGH);
+            hal.gpio->write(GREEN_LED_PORT, GPIO_OUTPUT_HIGH);
+            // if (AP_Notify::flags.failsafe_radio == true)
+            // {
+            //     GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "FFail");
+            // }
+            //  if (g2.torqeedo.healthy()==false)
+            // {
+            //     GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "hardware");
+            // }
+            
+    }  
+        
+     if(g2.torqeedo.healthy()==true && AP_Notify::flags.failsafe_radio == false)
+     {
+         
+         //general loop to check if the mode changed and change the light accordingly
+         //LED control loop
+         if (control_mode->is_autopilot_mode())
+         {
+             //turn on the green led and turn off the rest, if any 
+             hal.gpio->write(GREEN_LED_PORT, GPIO_OUTPUT_LOW);
+             hal.gpio->write(YELLOW_LED_PORT, GPIO_OUTPUT_HIGH);
+             hal.gpio->write(RED_LED_PORT, GPIO_OUTPUT_HIGH);
+         }
+         else
+         {
+             //turn on the yellow led and turn off the rest, if any 
+             hal.gpio->write(YELLOW_LED_PORT, GPIO_OUTPUT_LOW);
+             hal.gpio->write(GREEN_LED_PORT, GPIO_OUTPUT_HIGH);
+            hal.gpio->write(RED_LED_PORT, GPIO_OUTPUT_HIGH);
+         }
+     }
 }
 Rover rover;
 AP_Vehicle& vehicle = rover;

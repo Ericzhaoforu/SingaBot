@@ -75,8 +75,8 @@
 #include "mode.h"
 #define EMERGENCY_STOP_PORT 51
 #define RED_LED_PORT 52
-#define YELLOW_LED_PORT 53
-#define GREEN_LED_PORT 54
+#define YELLOW_LED_PORT 54
+#define GREEN_LED_PORT 53
 #define GPIO_OUTPUT_HIGH 1
 #define GPIO_OUTPUT_LOW 0
 
